@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-"""tui 前端：Textual 终端聊天界面，气泡消息流 + 工具活动面板。
+"""tui 前端：Textual 终端聊天界面，气泡消息流 + 功能清单 + 工具活动日志。
 未来新增 web、desktop、mobile 前端时，与 tui 平级创建目录即可。"""
 import threading
 
 from textual.app import App, ComposeResult
-from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import (Footer, Header, LoadingIndicator, Static,
                             TextArea)
 
 from core.agent import Agent
+from core.tools import TOOLS
 
 EXIT_WORDS = ("exit", "quit")
 
@@ -18,6 +18,26 @@ BUBBLE_CSS = {
     "ai": ("#1a7f37", "#e9f6ec", "#d3f0da"),
     "tool": ("#9a6700", "#fff8e5", "#f5e6b8"),
     "err": ("#d1242f", "#fdebec", "#f6cdd0"),
+}
+
+# 工具中文说明，与 core/tools.py 的注册表对应
+TOOL_CN = {
+    "getCWD": "查看当前目录",
+    "listDirectory": "列出目录内容",
+    "getFileType": "查看文件类型",
+    "getFileContent": "读取文件内容",
+    "createFile": "新建文件",
+    "editFile": "编辑文件",
+    "createDirectory": "新建文件夹",
+    "deleteDirectory": "删除文件夹",
+    "deleteFile": "删除文件",
+    "renameFileOrDir": "重命名/移动",
+    "getDate": "获取当前日期",
+    "isLeapYear": "判断闰年",
+    "searchWeb": "联网搜索",
+    "fetchWeb": "抓取网页正文",
+    "RunCli": "执行系统命令",
+    "loadSkill": "加载技能",
 }
 
 
@@ -40,7 +60,7 @@ class ChatInput(TextArea):
 
 
 class ChatTUI(App):
-    """zAgent 终端聊天界面：左侧对话流，右侧工具活动，底部状态条。"""
+    """zAgent 终端聊天界面：左侧对话流，右侧功能清单与活动日志，底部状态条。"""
 
     TITLE = "zAgent"
 
@@ -73,6 +93,29 @@ class ChatTUI(App):
         margin-bottom: 1;
     }
     #tools_title {
+        background: #f6f8fa;
+        color: #57606a;
+        padding: 0 1;
+        text-style: bold;
+        border-bottom: solid #d0d7de;
+    }
+    #func_list {
+        height: auto;
+        max-height: 45%;
+        padding: 0 1;
+        background: #ffffff;
+        border-bottom: solid #d0d7de;
+    }
+    .func_item {
+        width: 100%;
+        padding: 0 0;
+        color: #57606a;
+    }
+    .func_used {
+        color: #1a7f37;
+        text-style: bold;
+    }
+    #log_title {
         background: #f6f8fa;
         color: #57606a;
         padding: 0 1;
@@ -122,6 +165,7 @@ class ChatTUI(App):
     def __init__(self, agent):
         super().__init__()
         self.agent = agent
+        self._func_widgets = {}
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -134,7 +178,9 @@ class ChatTUI(App):
                         id="input",
                         placeholder="输入消息，Shift+Enter 换行，Enter 发送，exit 退出")
             with Vertical(id="tools_col"):
-                yield Static("工具活动", id="tools_title")
+                yield Static("功能清单", id="tools_title")
+                yield VerticalScroll(id="func_list")
+                yield Static("活动日志", id="log_title")
                 yield VerticalScroll(id="tool_list")
         with Horizontal(id="status"):
             yield LoadingIndicator(id="status_loading")
@@ -143,9 +189,43 @@ class ChatTUI(App):
 
     def on_mount(self):
         model = self.agent.model
+        self._build_func_list()
+        skill_names = [s["name"] for s in getattr(self.agent, "skills", [])]
+        hint = "可以问日期、闰年、文件操作"
+        if skill_names:
+            hint += "，技能：" + "、".join(skill_names)
         self.run_worker(self._add_bubble(
-            "欢迎使用 zAgent，当前模型 %s\n可以问日期、闰年、文件操作" % model,
-            "ai"))
+            "欢迎使用 zAgent，当前模型 %s\n%s" % (model, hint), "ai"))
+
+    def _build_func_list(self):
+        """在右侧生成全部功能清单：工具 + 技能，未用时为灰色小圆点。"""
+        entries = []
+        for tool in TOOLS:
+            fn = tool["function"]
+            name = fn["name"]
+            cn = TOOL_CN.get(name, "")
+            entries.append(("tool", name, cn))
+        for s in getattr(self.agent, "skills", []):
+            entries.append(("skill", s["name"], s["description"][:20]))
+        for kind, name, cn in entries:
+            label = "● %s  %s" % (name, cn) if cn else "● %s" % name
+            w = Static(label, id="func_%s" % name)
+            w.set_classes("func_item")
+            self._func_widgets[name] = w
+            self.run_worker(self._mount_func(w))
+
+    async def _mount_func(self, w):
+        await self.query_one("#func_list", VerticalScroll).mount(w)
+
+    def _mark_used(self, name):
+        """调用过某功能后，把清单里对应项打勾并变绿。"""
+        w = self._func_widgets.get(name)
+        if w is None:
+            return
+        text = w.render().plain if hasattr(w.render(), "plain") else str(w.render())
+        text = text.replace("●", "✓", 1)
+        w.update(text)
+        w.set_classes("func_item func_used")
 
     def action_submit(self):
         """Enter 发送，Shift+Enter 由 TextArea 默认行为处理为换行。"""
@@ -187,6 +267,7 @@ class ChatTUI(App):
             short_result = result[:150]
             if len(result) > 150:
                 short_result += "..."
+            self._mark_used(name)
             self.run_worker(self._add_bubble("工具  " + name + "  " + arg_str,
                                              "tool"))
             self.run_worker(self._add_tool_line(
