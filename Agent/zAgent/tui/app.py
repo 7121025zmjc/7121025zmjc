@@ -38,6 +38,8 @@ TOOL_CN = {
     "fetchWeb": "抓取网页正文",
     "RunCli": "执行系统命令",
     "loadSkill": "加载技能",
+    "createSkill": "创建技能",
+    "officeCli": "创建/修改Office文档",
 }
 
 

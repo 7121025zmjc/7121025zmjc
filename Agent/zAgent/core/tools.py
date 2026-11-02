@@ -92,6 +92,21 @@ OFFICE_EXTS = (".docx", ".xlsx", ".pptx", ".doc", ".xls", ".ppt")
 OFFICE_CLI_EXE = r"D:\office\.agents\skills\office-cli\officecli-win-x64.exe"
 
 
+def _normalize_office_path(arg):
+    """把 LLM 常写错的位置路径规范为 officecli 要求的 /slide[N] 形式。
+
+    例如 /slide1 -> /slide[1]，/body/p2 -> /body/p[2]，/shape3 -> /shape[3]。
+    Excel 的 /Sheet1 是工作表名，保持原样。
+    """
+    if not isinstance(arg, str):
+        return arg
+    if "/" not in arg or "[" in arg:
+        return arg
+    # 匹配 /slideN /body/pN /trN /tcN /shapeN /tblN /pN 等尾部数字索引
+    return _re.sub(r"/(slide|shape|p|tbl|tr|tc|row|col)(\d+)(?=/|$)",
+                   r"/\1[\2]", arg)
+
+
 def office_cli(args_list):
     """调用本地 officecli-win-x64.exe 操作 Office 文档。
 
@@ -100,12 +115,18 @@ def office_cli(args_list):
       ["add", "D:/a.docx", "/body", "--type", "paragraph",
        "--prop", "text=hello"]
       ["set", "D:/a.xlsx", "/Sheet1/A1", "--prop", "value=5"]
+    位置路径中的 /slide1 等写法会被自动规范为 /slide[1]。
     """
     if not args_list:
         return "错误：officecli 参数不能为空。"
     if not os.path.isfile(OFFICE_CLI_EXE):
         return "错误：未找到 officecli 可执行文件 %s" % OFFICE_CLI_EXE
-    cmd = [OFFICE_CLI_EXE] + [str(a) for a in args_list]
+    cmd = [OFFICE_CLI_EXE]
+    for a in args_list:
+        # 规范化路径参数，但跳过以 -- 开头的选项和 --prop 的键值
+        if isinstance(a, str) and not a.startswith("--") and "/" in a:
+            a = _normalize_office_path(a)
+        cmd.append(str(a))
     try:
         proc = subprocess.run(cmd, capture_output=True, timeout=60,
                               shell=False)
