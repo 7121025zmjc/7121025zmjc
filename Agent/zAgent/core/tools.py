@@ -89,6 +89,42 @@ def get_file_content(path):
 
 
 OFFICE_EXTS = (".docx", ".xlsx", ".pptx", ".doc", ".xls", ".ppt")
+OFFICE_CLI_EXE = r"D:\office\.agents\skills\office-cli\officecli-win-x64.exe"
+
+
+def office_cli(args_list):
+    """调用本地 officecli-win-x64.exe 操作 Office 文档。
+
+    args_list 是传给 exe 的参数数组，例如：
+      ["create", "D:/a.docx"]
+      ["add", "D:/a.docx", "/body", "--type", "paragraph",
+       "--prop", "text=hello"]
+      ["set", "D:/a.xlsx", "/Sheet1/A1", "--prop", "value=5"]
+    """
+    if not args_list:
+        return "错误：officecli 参数不能为空。"
+    if not os.path.isfile(OFFICE_CLI_EXE):
+        return "错误：未找到 officecli 可执行文件 %s" % OFFICE_CLI_EXE
+    cmd = [OFFICE_CLI_EXE] + [str(a) for a in args_list]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, timeout=60,
+                              shell=False)
+    except subprocess.TimeoutExpired:
+        return "错误：officecli 执行超时（60秒）。"
+    except Exception as e:
+        return "错误：officecli 执行失败：%s" % e
+    out = proc.stdout.decode("utf-8", "ignore")
+    err = proc.stderr.decode("utf-8", "ignore")
+    if len(out) > 3000:
+        out = out[:3000] + "\n...(stdout 过长已截断)"
+    if len(err) > 1000:
+        err = err[:1000] + "\n...(stderr 过长已截断)"
+    result = "officecli 退出码：%d" % proc.returncode
+    if out:
+        result += "\n" + out
+    if err:
+        result += "\n标准错误：\n" + err
+    return result
 
 
 def create_file(directory, filename, content=""):
@@ -96,9 +132,8 @@ def create_file(directory, filename, content=""):
     lower = filename.lower()
     if lower.endswith(OFFICE_EXTS):
         return ("错误：%s 是 Office 二进制格式文件，不能直接写入文本内容。"
-                "请先加载 office-cli 技能，通过 RunCli 调用 "
-                "D:\\office\\.agents\\skills\\office-cli\\officecli-win-x64.exe "
-                "执行 create / add / set 命令来创建和填写内容" % filename)
+                "请改用 officeCli 工具，例如 officeCli "
+                "args=[\"create\", \"<完整路径>\"], 再通过 add/set 填入内容" % filename)
     if not os.path.isdir(directory):
         os.makedirs(directory, exist_ok=True)
     path = os.path.join(directory, filename)
@@ -118,8 +153,7 @@ def edit_file(path, content):
         return "错误：%s 不是有效文件" % path
     if path.lower().endswith(OFFICE_EXTS):
         return ("错误：%s 是 Office 二进制格式文件，不能直接写入文本内容。"
-                "请通过 RunCli 调用 officecli-win-x64.exe 的 set / add 命令"
-                "来修改内容" % path)
+                "请改用 officeCli 工具，通过 set / add 命令修改内容" % path)
     try:
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -386,6 +420,18 @@ TOOLS = [
                              "description": "要写入 SKILL.md 的完整内容，"
                                             "包含 YAML Frontmatter 和正文"}},
             ["name", "skillContext"])}},
+    {"type": "function", "function": {"name": "officeCli",
+        "description": "调用本地 officecli 工具创建、读取、修改 Word(.docx)、"
+                       "Excel(.xlsx)、PowerPoint(.pptx) 文档。args 是传给 "
+                       "officecli-win-x64.exe 的参数数组。创建文档用 "
+                       "[\"create\", \"<文件路径>\"]，填内容用 "
+                       "[\"add\", \"<路径>\", \"/body\", \"--type\", \"paragraph\", "
+                       "\"--prop\", \"text=内容\"] 或 [\"set\", ...]。"
+                       "不确定命令语法时可先用 [\"help\"] 查看帮助",
+        "parameters": _params({
+            "args": {"type": "array", "items": {"type": "string"},
+                     "description": "传给 officecli 的参数数组"}},
+            ["args"])}},
 ]
 
 
@@ -462,4 +508,6 @@ def call_tool(name, args, search_api_key=""):
     if name == "createSkill":
         return create_skill(args.get("name", ""),
                             args.get("skillContext", ""))
+    if name == "officeCli":
+        return office_cli(args.get("args", []))
     return "未知工具：%s" % name
