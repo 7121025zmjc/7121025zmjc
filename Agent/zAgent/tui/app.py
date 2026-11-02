@@ -229,7 +229,8 @@ class ChatTUI(App):
             return
         text = w.render().plain if hasattr(w.render(), "plain") else str(w.render())
         text = text.replace("●", "✓", 1)
-        w.update(text, markup=False)
+        w._render_markup = False
+        w.update(text)
         w.set_classes("func_item func_used")
 
     def action_submit(self):
@@ -291,7 +292,9 @@ class ChatTUI(App):
             self._set_status("就绪，输入消息开始对话", loading=False)
 
     def _set_status(self, text, loading):
-        self.query_one("#status_text", Static).update(text, markup=False)
+        status = self.query_one("#status_text", Static)
+        status._render_markup = False
+        status.update(text)
         self.query_one("#status_loading",
                        LoadingIndicator).display = loading
         self.query_one("#input_loading",
