@@ -14,6 +14,31 @@ SYSTEM_PROMPT = ("你是一个乐于助人的 AI 助手。涉及本地文件操�
                  "必须调用对应的文件操作工具，不要编造结果。")
 
 
+def _safe_json(text):
+    """宽容解析工具参数 JSON：兼容拼接杂质、前导/尾部非法字符等。"""
+    text = (text or "").strip()
+    if not text:
+        return {}
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    decoder = json.JSONDecoder()
+    try:
+        obj, _ = decoder.raw_decode(text)
+        if isinstance(obj, dict):
+            return obj
+    except json.JSONDecodeError:
+        pass
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        try:
+            return json.loads(text[start:end + 1])
+        except json.JSONDecodeError:
+            pass
+    return {}
+
+
 class Agent:
     """LLM 智能体：管理会话上下文并执行 function call 循环。
 
@@ -100,7 +125,7 @@ class Agent:
             }
             self.messages.append(assistant_msg)
             for _, tc in sorted(tool_calls.items()):
-                args = json.loads(tc["arguments"] or "{}")
+                args = _safe_json(tc["arguments"])
                 result = call_tool(tc["name"], args,
                                    search_api_key=self.search_api_key)
                 self.messages.append({"role": "tool",
