@@ -42,7 +42,10 @@ TOOL_CN = {
 
 
 class Bubble(Static):
-    """消息气泡，按角色着色。"""
+    """消息气泡，按角色着色。禁用 markup，避免 [ ] 等字符被当作格式解析。"""
+
+    def __init__(self, content="", **kwargs):
+        super().__init__(content, markup=False, **kwargs)
 
 
 class ChatInput(TextArea):
@@ -211,7 +214,7 @@ class ChatTUI(App):
             label = "● %s  %s" % (name, cn) if cn else "● %s" % name
             # Textual 的 id 只允许字母数字下划线连字符，中文名用序号代替
             safe_id = "func_%d" % idx
-            w = Static(label, id=safe_id)
+            w = Static(label, id=safe_id, markup=False)
             w.set_classes("func_item")
             self._func_widgets[name] = w
             self.run_worker(self._mount_func(w))
@@ -226,7 +229,7 @@ class ChatTUI(App):
             return
         text = w.render().plain if hasattr(w.render(), "plain") else str(w.render())
         text = text.replace("●", "✓", 1)
-        w.update(text)
+        w.update(text, markup=False)
         w.set_classes("func_item func_used")
 
     def action_submit(self):
@@ -288,7 +291,7 @@ class ChatTUI(App):
             self._set_status("就绪，输入消息开始对话", loading=False)
 
     def _set_status(self, text, loading):
-        self.query_one("#status_text", Static).update(text)
+        self.query_one("#status_text", Static).update(text, markup=False)
         self.query_one("#status_loading",
                        LoadingIndicator).display = loading
         self.query_one("#input_loading",
@@ -305,7 +308,7 @@ class ChatTUI(App):
             animate=True)
 
     async def _add_tool_line(self, text):
-        line = Static(text)
+        line = Static(text, markup=False)
         line.styles.color = "#9a6700"
         line.styles.background = "#fff8e5"
         line.styles.border = ("solid", "#f5e6b8")
