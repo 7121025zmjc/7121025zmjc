@@ -88,8 +88,17 @@ def get_file_content(path):
         return "读取失败：%s" % e
 
 
+OFFICE_EXTS = (".docx", ".xlsx", ".pptx", ".doc", ".xls", ".ppt")
+
+
 def create_file(directory, filename, content=""):
     """根据指定的目录和文件名创建新文件。"""
+    lower = filename.lower()
+    if lower.endswith(OFFICE_EXTS):
+        return ("错误：%s 是 Office 二进制格式文件，不能直接写入文本内容。"
+                "请先加载 office-cli 技能，通过 RunCli 调用 "
+                "D:\\office\\.agents\\skills\\office-cli\\officecli-win-x64.exe "
+                "执行 create / add / set 命令来创建和填写内容" % filename)
     if not os.path.isdir(directory):
         os.makedirs(directory, exist_ok=True)
     path = os.path.join(directory, filename)
@@ -107,6 +116,10 @@ def edit_file(path, content):
     """编辑指定文件的内容，仅支持纯文本格式文件。"""
     if not os.path.isfile(path):
         return "错误：%s 不是有效文件" % path
+    if path.lower().endswith(OFFICE_EXTS):
+        return ("错误：%s 是 Office 二进制格式文件，不能直接写入文本内容。"
+                "请通过 RunCli 调用 officecli-win-x64.exe 的 set / add 命令"
+                "来修改内容" % path)
     try:
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
