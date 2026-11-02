@@ -421,13 +421,26 @@ TOOLS = [
                                             "包含 YAML Frontmatter 和正文"}},
             ["name", "skillContext"])}},
     {"type": "function", "function": {"name": "officeCli",
-        "description": "调用本地 officecli 工具创建、读取、修改 Word(.docx)、"
-                       "Excel(.xlsx)、PowerPoint(.pptx) 文档。args 是传给 "
-                       "officecli-win-x64.exe 的参数数组。创建文档用 "
-                       "[\"create\", \"<文件路径>\"]，填内容用 "
+        "description": "调用本地 officecli 工具创建、读取、修改 Office 文档。"
+                       "args 是传给 officecli-win-x64.exe 的参数数组。"
+                       "生成带内容的 Word："
+                       "[\"create\", \"<路径.docx>\"] 创建，再 "
                        "[\"add\", \"<路径>\", \"/body\", \"--type\", \"paragraph\", "
-                       "\"--prop\", \"text=内容\"] 或 [\"set\", ...]。"
-                       "不确定命令语法时可先用 [\"help\"] 查看帮助",
+                       "\"--prop\", \"text=段落内容\"] 逐段添加。"
+                       "生成带内容的 PPT："
+                       "[\"create\", \"<路径.pptx>\"] 创建，再 "
+                       "[\"add\", \"<路径>\", \"/\", \"--type\", \"slide\", "
+                       "\"--prop\", \"title=幻灯片标题\"] 添加幻灯片，然后 "
+                       "[\"add\", \"<路径>\", \"/slide[N]\", \"--type\", \"shape\", "
+                       "\"--prop\", \"text=正文内容\", \"--prop\", \"x=2cm\", "
+                       "\"--prop\", \"y=4cm\", \"--prop\", \"size=24\"] 逐页加文字"
+                       "（N 从 1 开始）。"
+                       "生成带内容的 Excel："
+                       "[\"create\", \"<路径.xlsx>\"] 创建，再 "
+                       "[\"set\", \"<路径>\", \"/Sheet1/A1\", \"--prop\", "
+                       "\"value=内容\"] 填单元格。"
+                       "不确定命令语法时可先用 [\"help\"] 或 "
+                       "[\"help\", \"<格式>\"] 查看帮助",
         "parameters": _params({
             "args": {"type": "array", "items": {"type": "string"},
                      "description": "传给 officecli 的参数数组"}},
