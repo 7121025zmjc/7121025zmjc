@@ -361,10 +361,49 @@ TOOLS = [
             "name": {"type": "string", "description": "Skill 的名称"},
             "filename": {"type": "string", "description": "要加载的附加文件名，可选"}},
             ["name"])}},
+    {"type": "function", "function": {"name": "createSkill",
+        "description": "根据用户的自然语言要求创建新的 Skill。在当前项目的 "
+                       ".agents/skills/ 目录下创建与 name 对应的英文子目录，"
+                       "并生成 SKILL.md 写入 skillContext。Skill 名称统一采用"
+                       "小写字母、数字和连字符格式。如果目标 Skill 已存在，"
+                       "返回提示避免覆盖",
+        "parameters": _params({
+            "name": {"type": "string", "description": "Skill 名称，小写字母数字连字符"},
+            "skillContext": {"type": "string",
+                             "description": "要写入 SKILL.md 的完整内容，"
+                                            "包含 YAML Frontmatter 和正文"}},
+            ["name", "skillContext"])}},
 ]
 
 
-from core.skill_loader import load_skill_body, load_skill_file
+from core.skill_loader import load_skill_body, load_skill_file, SKILLS_DIR
+import re as _re
+
+
+def create_skill(name, skill_context):
+    """根据用户自然语言要求创建新的 Skill。
+
+    在当前项目的 .agents/skills/ 目录下创建与 name 对应的子目录，
+    并在其中生成 SKILL.md，将 skillContext 写入该文件。
+    """
+    name = (name or "").strip().lower()
+    if not name:
+        return "错误：Skill 名称不能为空。"
+    if not _re.fullmatch(r"[a-z0-9-]+", name):
+        return ("错误：Skill 名称只能包含小写字母、数字和连字符，"
+                "例如 mini-encryption。")
+    skill_context = skill_context or ""
+    skill_dir = os.path.join(os.getcwd(), SKILLS_DIR, name)
+    skill_md = os.path.join(skill_dir, "SKILL.md")
+    if os.path.exists(skill_md):
+        return "提示：Skill %s 已存在，未覆盖原文件。路径：%s" % (name, skill_md)
+    try:
+        os.makedirs(skill_dir, exist_ok=True)
+        with open(skill_md, "w", encoding="utf-8") as f:
+            f.write(skill_context)
+    except Exception as e:
+        return "错误：创建 Skill 失败：%s" % e
+    return "已创建 Skill %s，路径：%s" % (name, skill_md)
 
 
 def call_tool(name, args, search_api_key=""):
@@ -407,4 +446,7 @@ def call_tool(name, args, search_api_key=""):
         if filename:
             return load_skill_file(skill_name, filename)
         return load_skill_body(skill_name)
+    if name == "createSkill":
+        return create_skill(args.get("name", ""),
+                            args.get("skillContext", ""))
     return "未知工具：%s" % name

@@ -207,9 +207,11 @@ class ChatTUI(App):
             entries.append(("tool", name, cn))
         for s in getattr(self.agent, "skills", []):
             entries.append(("skill", s["name"], s["description"][:20]))
-        for kind, name, cn in entries:
+        for idx, (kind, name, cn) in enumerate(entries):
             label = "● %s  %s" % (name, cn) if cn else "● %s" % name
-            w = Static(label, id="func_%s" % name)
+            # Textual 的 id 只允许字母数字下划线连字符，中文名用序号代替
+            safe_id = "func_%d" % idx
+            w = Static(label, id=safe_id)
             w.set_classes("func_item")
             self._func_widgets[name] = w
             self.run_worker(self._mount_func(w))
