@@ -42,6 +42,28 @@ TOOL_CN = {
     "officeCli": "创建/修改Office文档",
 }
 
+# 本地功能的分组标题
+TOOL_GROUP = {
+    "getCWD": "文件与目录",
+    "listDirectory": "文件与目录",
+    "getFileType": "文件与目录",
+    "getFileContent": "文件与目录",
+    "createFile": "文件与目录",
+    "editFile": "文件与目录",
+    "createDirectory": "文件与目录",
+    "deleteDirectory": "文件与目录",
+    "deleteFile": "文件与目录",
+    "renameFileOrDir": "文件与目录",
+    "getDate": "日期与时间",
+    "isLeapYear": "日期与时间",
+    "searchWeb": "网络与搜索",
+    "fetchWeb": "网络与搜索",
+    "RunCli": "命令执行",
+    "loadSkill": "技能管理",
+    "createSkill": "技能管理",
+    "officeCli": "Office 文档",
+}
+
 
 class Bubble(Static):
     """消息气泡，按角色着色。禁用 markup，避免 [ ] 等字符被当作格式解析。"""
@@ -115,6 +137,14 @@ class ChatTUI(App):
         width: 100%;
         padding: 0 0;
         color: #57606a;
+    }
+    .func_group {
+        width: 100%;
+        padding: 1 0 0 0;
+        color: #24292f;
+        text-style: bold;
+        border-bottom: solid #d0d7de;
+        margin-bottom: 1;
     }
     .func_used {
         color: #1a7f37;
@@ -203,28 +233,70 @@ class ChatTUI(App):
             "欢迎使用 zAgent，当前模型 %s\n%s" % (model, hint), "ai"))
 
     def _build_func_list(self):
-        """在右侧生成全部功能清单：工具 + 技能，未用时为灰色小圆点。"""
-        entries = []
-        # 静态工具 + MCP 动态工具
-        tools = list(getattr(self.agent, "tools", None) or TOOLS)
-        for tool in tools:
+        """在右侧生成分类功能清单：本地功能按类别细分，再列技能与 MCP 工具，
+        未用时为灰色小圆点。"""
+        widgets = []          # 按展示顺序的 (widget, name)
+        mcp_names = set(t["function"]["name"]
+                        for t in getattr(self.agent, "mcp_tools", []) or [])
+
+        def add_group(title):
+            g = Static(title, markup=False)
+            g.set_classes("func_group")
+            widgets.append((g, None))
+
+        def add_item(label, name):
+            w = Static(label, id="func_%d" % len(widgets), markup=False)
+            w.set_classes("func_item")
+            widgets.append((w, name))
+
+        # 第一组：本地功能，按类别细分
+        by_group = {}
+        for tool in TOOLS:
             fn = tool["function"]
             name = fn["name"]
-            cn = TOOL_CN.get(name, "")
-            entries.append(("tool", name, cn))
-        for s in getattr(self.agent, "skills", []):
-            entries.append(("skill", s["name"], s["description"][:20]))
-        for idx, (kind, name, cn) in enumerate(entries):
-            label = "● %s  %s" % (name, cn) if cn else "● %s" % name
-            # Textual 的 id 只允许字母数字下划线连字符，中文名用序号代替
-            safe_id = "func_%d" % idx
-            w = Static(label, id=safe_id, markup=False)
-            w.set_classes("func_item")
-            self._func_widgets[name] = w
-            self.run_worker(self._mount_func(w))
+            by_group.setdefault(TOOL_GROUP.get(name, "其他功能"), []).append(
+                (name, TOOL_CN.get(name, "")))
+        for group_title in ("文件与目录", "日期与时间", "网络与搜索",
+                            "命令执行", "Office 文档", "技能管理", "其他功能"):
+            items = by_group.get(group_title)
+            if not items:
+                continue
+            add_group("◆ 功能：" + group_title)
+            for name, cn in items:
+                label = "● %s  %s" % (name, cn) if cn else "● %s" % name
+                add_item(label, name)
 
-    async def _mount_func(self, w):
-        await self.query_one("#func_list", VerticalScroll).mount(w)
+        # 第二组：技能
+        skills = getattr(self.agent, "skills", []) or []
+        if skills:
+            add_group("◆ 技能")
+            for s in skills:
+                name = s["name"]
+                desc = (s.get("description") or "")[:24]
+                label = "● %s  %s" % (name, desc) if desc else "● %s" % name
+                add_item(label, name)
+
+        # 第三组：MCP 动态工具
+        mcp_tools = [t for t in getattr(self.agent, "tools", []) or []
+                     if t["function"]["name"] in mcp_names]
+        if mcp_tools:
+            add_group("◆ MCP 工具")
+            for tool in mcp_tools:
+                fn = tool["function"]
+                name = fn["name"]
+                desc = (fn.get("description") or "")[:24]
+                label = "● %s  %s" % (name, desc) if desc else "● %s" % name
+                add_item(label, name)
+
+        for w, name in widgets:
+            if name:
+                self._func_widgets[name] = w
+        self.run_worker(self._mount_funcs([w for w, _ in widgets]))
+
+    async def _mount_funcs(self, ws):
+        box = self.query_one("#func_list", VerticalScroll)
+        for w in ws:
+            await box.mount(w)
 
     def _mark_used(self, name):
         """调用过某功能后，把清单里对应项打勾并变绿。"""
