@@ -205,7 +205,9 @@ class ChatTUI(App):
     def _build_func_list(self):
         """在右侧生成全部功能清单：工具 + 技能，未用时为灰色小圆点。"""
         entries = []
-        for tool in TOOLS:
+        # 静态工具 + MCP 动态工具
+        tools = list(getattr(self.agent, "tools", None) or TOOLS)
+        for tool in tools:
             fn = tool["function"]
             name = fn["name"]
             cn = TOOL_CN.get(name, "")

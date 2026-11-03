@@ -7,6 +7,7 @@ from openai import OpenAI
 
 from core.tools import TOOLS, call_tool
 from core.skill_loader import discover_skills, build_skills_prompt
+from core.mcp_client import discover_mcp_tools, call_mcp_tool, load_mcp_config
 
 DEFAULT_TIMEOUT = 60
 MAX_MESSAGES = 30
@@ -74,6 +75,20 @@ class Agent:
         full_prompt = system_prompt
         if skills_text:
             full_prompt = system_prompt + "\n\n" + skills_text
+
+        # MCP 动态工具：读取 .mcp.json，连接 Server 后动态注册到工具集合
+        self.mcp_tools, self.mcp_mapping, self.mcp_errors = discover_mcp_tools()
+        self.tools = TOOLS + self.mcp_tools
+        if self.mcp_errors:
+            mcp_err_text = "\n".join("  - %s" % e for e in self.mcp_errors)
+            full_prompt += ("\n\n[MCP 工具] 部分 MCP Server 连接失败，"
+                            "相关 MCP 工具不可用：\n%s" % mcp_err_text)
+        elif self.mcp_tools:
+            names = ", ".join(t["function"]["name"]
+                              for t in self.mcp_tools)
+            full_prompt += ("\n\n[MCP 工具] 以下工具由外部 MCP Server "
+                            "动态提供，可像本地工具一样调用：\n%s" % names)
+
         self.messages = [{"role": "system", "content": full_prompt}]
         self.on_event = on_event
 
@@ -103,7 +118,7 @@ class Agent:
     def _chat_stream(self):
         """流式 function call 循环：增量输出内容，必要时执行工具并递归。"""
         stream = self.client.chat.completions.create(
-            model=self.model, messages=self.messages, tools=TOOLS,
+            model=self.model, messages=self.messages, tools=self.tools,
             stream=True)
         content = []
         tool_calls = {}
@@ -142,13 +157,16 @@ class Agent:
             self.messages.append(assistant_msg)
             for _, tc in sorted(tool_calls.items()):
                 args = _safe_json(tc["arguments"])
-                result = call_tool(tc["name"], args,
-                                   search_api_key=self.search_api_key)
+                name = tc["name"]
+                if name in self.mcp_mapping:
+                    result = call_mcp_tool(self.mcp_mapping[name], args)
+                else:
+                    result = call_tool(name, args,
+                                       search_api_key=self.search_api_key)
                 self.messages.append({"role": "tool",
                                       "tool_call_id": tc["id"],
                                       "content": result})
-                self._emit("tool", name=tc["name"], args=args,
-                           result=result)
+                self._emit("tool", name=name, args=args, result=result)
             self._emit("thinking")
             return self._chat_stream()
         return "".join(content)
