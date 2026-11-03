@@ -136,6 +136,10 @@ def office_cli(args_list):
         return "错误：officecli 执行失败：%s" % e
     out = proc.stdout.decode("utf-8", "ignore")
     err = proc.stderr.decode("utf-8", "ignore")
+    # 过滤无害的 locale 提示，避免被误认为错误
+    err_lines = [ln for ln in err.splitlines()
+                 if not ln.strip().startswith("Note: locale")]
+    err = "\n".join(err_lines).strip()
     if len(out) > 3000:
         out = out[:3000] + "\n...(stdout 过长已截断)"
     if len(err) > 1000:
@@ -145,14 +149,14 @@ def office_cli(args_list):
         result += "\n" + out
     if err:
         result += "\n标准错误：\n" + err
-    # create 成功但只是空文档时，提示继续填内容
+    # create 成功但只是空文档时，提示：仅在用户要求内容时才继续写
     if proc.returncode == 0 and "create" in [str(a).lower() for a in args_list]:
         has_content_cmd = any(str(a).lower() in ("add", "set", "raw-set")
                               for a in args_list)
         if not has_content_cmd:
-            result += ("\n提示：当前只创建了空文档。"
-                       "如果用户需要文档包含内容，请继续用 add 或 set 命令"
-                       "写入文字/数据后再回复用户。")
+            result += ("\n提示：空文档已创建。"
+                       "仅当用户明确要求文档包含内容时，才继续用 add 或 set "
+                       "命令写入内容；用户没有要求内容时，直接告知已创建即可。")
     return result
 
 
