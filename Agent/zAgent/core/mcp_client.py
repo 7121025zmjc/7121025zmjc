@@ -28,7 +28,19 @@ def find_mcp_config():
 
 
 def load_mcp_config(path=None):
-    """读取 .mcp.json，返回 {"server名": {"type": ..., "url": ...}}。"""
+    """读取 .mcp.json，返回 {"server名": {"type": ..., "url": ...}}。
+
+    path 可以是 .mcp.json 文件路径，也可以直接是已解析的配置字典。
+    """
+    if isinstance(path, dict):
+        data = path
+        # 兼容两种写法：{"mcpServers": {...}} 或直接 {"server名": {...}}
+        servers = data.get("mcpServers")
+        if servers is None:
+            servers = data
+        if not isinstance(servers, dict):
+            return {"__error__": "配置中缺少 mcpServers 对象"}
+        return servers
     path = path or find_mcp_config()
     if not path:
         return {}
@@ -136,7 +148,9 @@ def list_server_tools(server_name, config):
                 return [], "MCP Server %s 缺少 command 配置" % server_name
             args = config.get("args", []) or []
             env = config.get("env")
-            params = StdioServerParameters(command=command, args=args, env=env)
+            cwd = config.get("cwd")
+            params = StdioServerParameters(command=command, args=args,
+                                           env=env, cwd=cwd)
             return (asyncio.run(_list_tools_stdio(params, server_name, prefix)), None)
         return [], "MCP Server %s 的 type 不支持：%s（仅支持 streamable_http / stdio）" % (
             server_name, server_type)
@@ -233,7 +247,8 @@ def call_mcp_tool(mapping_entry, arguments, config=None):
             params = StdioServerParameters(
                 command=command,
                 args=config_obj.get("args", []) or [],
-                env=config_obj.get("env"))
+                env=config_obj.get("env"),
+                cwd=config_obj.get("cwd"))
             result = asyncio.run(_call_tool_stdio(params, tool_name, arguments))
         else:
             return "错误：MCP Server %s 的 type 不支持：%s" % (server_name, server_type)

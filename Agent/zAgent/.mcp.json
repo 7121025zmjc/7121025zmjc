@@ -3,6 +3,20 @@
     "Bazi-MCP": {
       "type": "streamable_http",
       "url": "https://mcp.api-inference.modelscope.net/4a3222faa31a4e/mcp"
+    },
+    "PetHospital": {
+      "type": "stdio",
+      "command": "D:\\github\\7121025zmjc\\PetHospitalMCP\\venv\\Scripts\\python.exe",
+      "args": ["-m", "pet_hospital_mcp.server", "--transport", "stdio"],
+      "env": {
+        "PET_HOSPITAL_API_BASE_URL": "http://127.0.0.1:8080",
+        "MCP_TRANSPORT": "stdio"
+      },
+      "cwd": "D:\\github\\7121025zmjc\\PetHospitalMCP"
+    },
+    "AnythingLLM": {
+      "type": "streamable_http",
+      "url": "http://localhost:8000/mcp"
     }
   }
 }
