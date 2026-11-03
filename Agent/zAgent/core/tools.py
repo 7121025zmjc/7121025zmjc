@@ -145,6 +145,14 @@ def office_cli(args_list):
         result += "\n" + out
     if err:
         result += "\n标准错误：\n" + err
+    # create 成功但只是空文档时，提示继续填内容
+    if proc.returncode == 0 and "create" in [str(a).lower() for a in args_list]:
+        has_content_cmd = any(str(a).lower() in ("add", "set", "raw-set")
+                              for a in args_list)
+        if not has_content_cmd:
+            result += ("\n提示：当前只创建了空文档。"
+                       "如果用户需要文档包含内容，请继续用 add 或 set 命令"
+                       "写入文字/数据后再回复用户。")
     return result
 
 
