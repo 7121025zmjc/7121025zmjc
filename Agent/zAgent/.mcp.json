@@ -13,10 +13,6 @@
         "MCP_TRANSPORT": "stdio"
       },
       "cwd": "D:\\github\\7121025zmjc\\PetHospitalMCP"
-    },
-    "AnythingLLM": {
-      "type": "streamable_http",
-      "url": "http://localhost:8000/mcp"
     }
   }
 }
