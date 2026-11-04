@@ -1,8 +1,9 @@
 {
   "mcpServers": {
     "Bazi-MCP": {
-      "type": "streamable_http",
-      "url": "https://mcp.api-inference.modelscope.net/4a3222faa31a4e/mcp"
+      "type": "stdio",
+      "command": "npx",
+      "args": ["--yes", "bazi-mcp"]
     },
     "PetHospital": {
       "type": "stdio",
