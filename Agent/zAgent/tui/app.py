@@ -276,17 +276,25 @@ class ChatTUI(App):
                 label = "● %s  %s" % (name, desc) if desc else "● %s" % name
                 add_item(label, name)
 
-        # 第三组：MCP 动态工具
+        # 第三组：MCP 动态工具，按服务器分组
         mcp_tools = [t for t in getattr(self.agent, "tools", []) or []
                      if t["function"]["name"] in mcp_names]
         if mcp_tools:
-            add_group("◆ MCP 工具")
+            # 服务器名 → 工具列表，工具名去掉 "服务器名__" 前缀
+            by_server = {}
             for tool in mcp_tools:
-                fn = tool["function"]
-                name = fn["name"]
-                desc = (fn.get("description") or "")[:24]
-                label = "● %s  %s" % (name, desc) if desc else "● %s" % name
-                add_item(label, name)
+                full = tool["function"]["name"]
+                server = full.split("__", 1)[0] if "__" in full else "MCP"
+                short = full.split("__", 1)[1] if "__" in full else full
+                by_server.setdefault(server, []).append((tool, short))
+            for server, items in by_server.items():
+                add_group("◆ MCP：" + server)
+                for tool, short in items:
+                    fn = tool["function"]
+                    desc = (fn.get("description") or "")[:24]
+                    label = ("● %s  %s" % (short, desc)
+                             if desc else "● %s" % short)
+                    add_item(label, full)
 
         for w, name in widgets:
             if name:
