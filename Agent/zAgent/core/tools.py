@@ -478,10 +478,24 @@ TOOLS = [
             "args": {"type": "array", "items": {"type": "string"},
                      "description": "传给 officecli 的参数数组"}},
             ["args"])}},
+    {"type": "function", "function": {"name": "recallContext",
+        "description": "检索之前压缩保存的历史上下文。当压缩摘要缺少某些历史"
+                       "细节时，用此工具从 .agents/context/ 目录下的归档中"
+                       "查找原始记录。提供 id 时只检索该归档编号对应的文件，"
+                       "不提供 id 时检索全部归档。返回匹配的原始内容片段、"
+                       "归档编号和所在位置",
+        "parameters": _params({
+            "id": {"type": "string",
+                   "description": "归档编号，例如 20261104-153000，可选"},
+            "text": {"type": "string",
+                     "description": "要查找的关键词或文本内容，多个词用空格"
+                                    "分隔时要求全部出现"}},
+            ["text"])}},
 ]
 
 
 from core.skill_loader import load_skill_body, load_skill_file, SKILLS_DIR
+from core.context_manager import recall_context
 import re as _re
 
 
@@ -556,4 +570,6 @@ def call_tool(name, args, search_api_key=""):
                             args.get("skillContext", ""))
     if name == "officeCli":
         return office_cli(args.get("args", []))
+    if name == "recallContext":
+        return recall_context(args.get("text", ""), args.get("id", ""))
     return "未知工具：%s" % name

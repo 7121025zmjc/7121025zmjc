@@ -7,3 +7,10 @@ venv/
 # Python 缓存
 __pycache__/
 *.pyc
+
+# 上下文压缩归档目录
+.agents/context/
+
+# 历史会话保存与事件日志
+.agents/sessions/
+.agents/log/
