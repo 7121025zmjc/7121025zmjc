@@ -2,3 +2,4 @@ openai
 textual
 trafilatura
 mcp
+flask

@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>zAgent</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --bg3: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --blue: #58a6ff;
+    --blue-deep: #1f6feb;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    background: radial-gradient(1200px 600px at 15% -10%, #1c2b44 0%, transparent 55%),
+                radial-gradient(1000px 500px at 110% 110%, #1b2a3a 0%, transparent 50%),
+                var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* 顶部栏 */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    background: linear-gradient(90deg, #1f6feb, #1f4f8f);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(0,0,0,.35);
+  }
+  .logo {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, #58a6ff, #3fb950);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 15px; color: #0d1117;
+  }
+  header h1 { font-size: 17px; font-weight: 700; letter-spacing: .5px; }
+  .model-badge {
+    font-size: 11px; background: rgba(255,255,255,.16);
+    padding: 3px 10px; border-radius: 20px; white-space: nowrap;
+  }
+  .ctx-wrap { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .ctx-label { font-size: 11px; opacity: .85; white-space: nowrap; }
+  .ctx-track {
+    width: 180px; height: 7px; border-radius: 4px;
+    background: rgba(255,255,255,.18); overflow: hidden;
+  }
+  .ctx-fill { height: 100%; width: 0%; border-radius: 4px;
+    background: linear-gradient(90deg, #3fb950, #d29922);
+    transition: width .4s ease, background .4s ease; }
+  .ctx-fill.warn { background: linear-gradient(90deg, #d29922, #f85149); }
+  .ctx-num { font-size: 11px; font-variant-numeric: tabular-nums; }
+
+  /* 主区 */
+  main { flex: 1; display: flex; min-height: 0; }
+
+  /* 聊天区 */
+  .chat-col { flex: 3; display: flex; flex-direction: column; min-width: 0; }
+  #messages {
+    flex: 1; overflow-y: auto; padding: 18px 20px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  #messages::-webkit-scrollbar, aside::-webkit-scrollbar, .log-list::-webkit-scrollbar {
+    width: 8px;
+  }
+  #messages::-webkit-scrollbar-thumb, aside::-webkit-scrollbar-thumb,
+  .log-list::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+  .msg { display: flex; max-width: 82%; animation: pop .18s ease; }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .msg.user { align-self: flex-end; }
+  .msg.ai, .msg.tool, .msg.err { align-self: flex-start; }
+  .bubble {
+    padding: 10px 14px; border-radius: 14px; line-height: 1.65;
+    font-size: 14px; white-space: pre-wrap; word-break: break-word;
+  }
+  .msg.user .bubble {
+    background: linear-gradient(135deg, #1f6feb, #388bfd);
+    color: #fff; border-bottom-right-radius: 4px;
+    box-shadow: 0 2px 8px rgba(31,111,235,.3);
+  }
+  .msg.ai .bubble {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-bottom-left-radius: 4px; color: var(--text);
+  }
+  .msg.tool .bubble {
+    background: rgba(158,106,3,.12); border: 1px solid #9e6a03;
+    color: #d29922; font-size: 12.5px;
+  }
+  .msg.err .bubble {
+    background: rgba(218,54,51,.12); border: 1px solid #da3633;
+    color: #f85149;
+  }
+  .cursor { display: inline-block; width: 8px; height: 15px;
+    background: var(--blue); vertical-align: -2px; animation: blink .8s infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* 输入区 */
+  .input-area { padding: 12px 20px 14px; background: var(--bg2);
+    border-top: 1px solid var(--border); position: relative; }
+  .cmd-panel {
+    position: absolute; bottom: 100%; left: 20px; right: 20px;
+    background: var(--bg3); border: 1px solid var(--blue);
+    border-radius: 10px; margin-bottom: 6px; overflow: hidden;
+    display: none; z-index: 10; box-shadow: 0 6px 20px rgba(0,0,0,.4);
+  }
+  .cmd-item { padding: 8px 14px; font-size: 13px; color: var(--muted); }
+  .cmd-item .cmd-name { color: var(--blue); font-weight: 700; margin-right: 10px; }
+  .cmd-item.sel { background: rgba(31,111,235,.18); color: var(--text); }
+  .input-row { display: flex; gap: 10px; align-items: flex-end; }
+  #input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 12px; color: var(--text); font-size: 14px;
+    padding: 11px 14px; outline: none; resize: none; line-height: 1.5;
+    font-family: inherit; max-height: 140px; transition: border-color .2s;
+  }
+  #input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(88,166,255,.15); }
+  #send {
+    width: 44px; height: 44px; border: none; border-radius: 12px;
+    background: linear-gradient(135deg, #1f6feb, #388bfd); color: #fff;
+    font-size: 18px; cursor: pointer; flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(31,111,235,.35); transition: transform .15s, opacity .15s;
+  }
+  #send:hover { transform: translateY(-1px); }
+  #send:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  .status-line { margin-top: 6px; font-size: 12px; color: var(--muted);
+    min-height: 16px; display: flex; align-items: center; gap: 8px; }
+  .spinner { width: 13px; height: 13px; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--blue);
+    animation: spin .7s linear infinite; display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner.on { display: inline-block; }
+
+  /* 右侧边栏 */
+  aside {
+    flex: 2; min-width: 260px; max-width: 380px;
+    border-left: 1px solid var(--border);
+    background: rgba(22,27,34,.75);
+    overflow-y: auto; padding: 14px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .card { background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; }
+  .card-title { padding: 9px 13px; font-size: 12px; font-weight: 700;
+    color: var(--blue); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 7px; letter-spacing: .5px; }
+  .card-title::before { content: "◆"; font-size: 10px; }
+  .card-body { padding: 8px 13px; max-height: 260px; overflow-y: auto; }
+  .card-body::-webkit-scrollbar { width: 6px; }
+  .card-body::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  .group { font-size: 11.5px; color: var(--text); font-weight: 700;
+    margin: 8px 0 4px; padding-top: 6px; border-top: 1px dashed #30363d; }
+  .group:first-child { margin-top: 0; border-top: none; padding-top: 0; }
+  .fn { font-size: 12px; color: var(--muted); padding: 2px 0 2px 6px;
+    display: flex; justify-content: space-between; gap: 6px; }
+  .fn.used { color: var(--green); font-weight: 600; }
+  .fn .tag { font-size: 10.5px; color: #6e7681; }
+  .mcp-server { padding: 7px 0; border-bottom: 1px dashed #30363d; }
+  .mcp-server:last-child { border-bottom: none; }
+  .mcp-head { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.loading { background: var(--orange); box-shadow: 0 0 6px var(--orange); animation: blink 1s infinite; }
+  .dot.error { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .mcp-tools { padding: 5px 0 0 16px; font-size: 11.5px; color: var(--muted); }
+  .mcp-tools .t { display: block; padding: 1px 0; }
+  .log-list { max-height: 220px; overflow-y: auto; padding: 4px 0; }
+  .log-item { font-size: 11.5px; color: var(--orange); padding: 4px 0 4px 6px;
+    border-bottom: 1px dashed #21262d; word-break: break-all; }
+  .log-item:last-child { border-bottom: none; }
+  .empty { color: var(--muted); font-size: 12px; padding: 6px; }
+
+  /* 会话模态框 */
+  .modal-mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    display: none; align-items: center; justify-content: center; z-index: 50;
+  }
+  .modal {
+    width: 460px; max-width: 92vw; max-height: 70vh;
+    background: var(--bg2); border: 1px solid var(--blue);
+    border-radius: 14px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  .modal-title { padding: 13px 16px; font-size: 14px; font-weight: 700;
+    color: var(--text); border-bottom: 1px solid var(--border); }
+  .modal-list { max-height: 48vh; overflow-y: auto; }
+  .sess-item { padding: 11px 16px; cursor: pointer; border-bottom: 1px solid #21262d; }
+  .sess-item:hover { background: rgba(31,111,235,.12); }
+  .sess-item .s-id { font-size: 12px; color: var(--blue); font-weight: 600; }
+  .sess-item .s-title { font-size: 13px; color: var(--text); margin-top: 3px; }
+  .sess-item .s-count { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .modal-foot { padding: 10px 16px; border-top: 1px solid var(--border);
+    text-align: right; }
+  .modal-foot button { background: var(--bg3); color: var(--text);
+    border: 1px solid var(--border); padding: 6px 18px; border-radius: 8px;
+    cursor: pointer; font-size: 13px; }
+  .modal-foot button:hover { border-color: var(--blue); color: var(--blue); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">z</div>
+  <h1>zAgent</h1>
+  <span class="model-badge" id="modelBadge">加载中...</span>
+  <div class="ctx-wrap">
+    <span class="ctx-label">上下文</span>
+    <div class="ctx-track"><div class="ctx-fill" id="ctxFill"></div></div>
+    <span class="ctx-num" id="ctxNum">--</span>
+  </div>
+</header>
+
+<main>
+  <section class="chat-col">
+    <div id="messages"></div>
+    <div class="input-area">
+      <div class="cmd-panel" id="cmdPanel"></div>
+      <div class="input-row">
+        <textarea id="input" rows="1" placeholder="输入消息，/ 查看命令，/compact 压缩上下文"></textarea>
+        <button id="send" title="发送">➤</button>
+      </div>
+      <div class="status-line">
+        <span class="spinner" id="spinner"></span>
+        <span id="statusText">就绪，输入消息开始对话</span>
+      </div>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <div class="card-title">功能清单</div>
+      <div class="card-body" id="funcList"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">MCP 服务器</div>
+      <div class="card-body" id="mcpList"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">活动日志</div>
+      <div class="card-body log-list" id="logList"></div>
+    </div>
+  </aside>
+</main>
+
+<div class="modal-mask" id="sessModal">
+  <div class="modal">
+    <div class="modal-title">历史会话（点击恢复，Esc 取消）</div>
+    <div class="modal-list" id="sessList"></div>
+    <div class="modal-foot"><button id="sessCancel">取消</button></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+const messagesEl = $("messages");
+const inputEl = $("input");
+const sendBtn = $("send");
+const cmdPanel = $("cmdPanel");
+const statusText = $("statusText");
+const spinner = $("spinner");
+
+let agentInfo = null;
+let cmdIndex = 0;
+let cmdMatched = [];
+let busy = false;
+
+/* ---------- 工具函数 ---------- */
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s == null ? "" : String(s);
+  return d.innerHTML;
+}
+function setStatus(text, loading) {
+  statusText.textContent = text;
+  spinner.classList.toggle("on", !!loading);
+}
+function addMsg(role, text) {
+  const box = document.createElement("div");
+  box.className = "msg " + role;
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = text;
+  box.appendChild(bubble);
+  messagesEl.appendChild(box);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return bubble;
+}
+function addLog(text) {
+  const line = document.createElement("div");
+  line.className = "log-item";
+  line.textContent = text;
+  $("logList").appendChild(line);
+  $("logList").scrollTop = $("logList").scrollHeight;
+}
+function updateCtx(used, windowK, defaulted, estimated, ratio) {
+  const pct = Math.min(100, ratio * 100);
+  const fill = $("ctxFill");
+  fill.style.width = pct + "%";
+  fill.classList.toggle("warn", ratio >= 0.8);
+  const mark = defaulted ? " 默认" : "";
+  const est = estimated ? " 估算" : "";
+  $("ctxNum").textContent =
+    (used / 1024).toFixed(1) + "k / " + windowK.toFixed(0) + "k" + mark +
+    "  " + pct.toFixed(1) + "%" + est;
+}
+
+/* ---------- 初始化 ---------- */
+async function init() {
+  const res = await fetch("/api/init");
+  agentInfo = await res.json();
+  $("modelBadge").textContent = agentInfo.model;
+  updateCtx(0, agentInfo.context_window / 1024, agentInfo.context_defaulted,
+            false, 0);
+  renderFuncList();
+  renderMcp();
+  agentInfo.messages.forEach((m) => addMsg(
+    m.role === "user" ? "user" : "ai", m.content));
+  pollMcp();
+  inputEl.focus();
+}
+
+/* ---------- 功能清单 ---------- */
+function renderFuncList() {
+  const box = $("funcList");
+  box.innerHTML = "";
+  const cn = agentInfo.tool_cn;
+  const group = agentInfo.tool_group;
+  const byGroup = {};
+  agentInfo.tools.forEach((t) => {
+    const name = t.function.name;
+    (byGroup[group[name] || "其他功能"] = byGroup[group[name] || "其他功能"] || [])
+      .push([name, cn[name] || ""]);
+  });
+  const order = ["文件与目录", "日期与时间", "网络与搜索", "命令执行",
+                 "Office 文档", "技能管理", "上下文管理", "其他功能"];
+  order.forEach((g) => {
+    if (!byGroup[g]) return;
+    const gt = document.createElement("div");
+    gt.className = "group";
+    gt.textContent = "◆ 功能：" + g;
+    box.appendChild(gt);
+    if (g === "上下文管理") {
+      const row = document.createElement("div");
+      row.className = "fn";
+      row.innerHTML = "<span>● /compact 手动压缩上下文</span>";
+      box.appendChild(row);
+    }
+    byGroup[g].forEach(([name, c]) => {
+      const row = document.createElement("div");
+      row.className = "fn";
+      row.dataset.name = name;
+      row.innerHTML = "<span>● " + esc(name) + " " + esc(c) + "</span>";
+      box.appendChild(row);
+    });
+  });
+  if (agentInfo.skills && agentInfo.skills.length) {
+    const gt = document.createElement("div");
+    gt.className = "group";
+    gt.textContent = "◆ 技能";
+    box.appendChild(gt);
+    agentInfo.skills.forEach((s) => {
+      const row = document.createElement("div");
+      row.className = "fn";
+      row.innerHTML = "<span>● " + esc(s.name) + "</span><span class='tag'>" +
+        esc((s.description || "").slice(0, 20)) + "</span>";
+      box.appendChild(row);
+    });
+  }
+}
+function markUsed(name) {
+  document.querySelectorAll(".fn[data-name='" + name + "']")
+    .forEach((el) => el.classList.add("used"));
+}
+
+/* ---------- MCP ---------- */
+async function renderMcp() {
+  let data;
+  try {
+    data = await (await fetch("/api/mcp")).json();
+  } catch (e) { return; }
+  const box = $("mcpList");
+  const status = data.status || {};
+  const keys = Object.keys(status);
+  if (!keys.length) {
+    box.innerHTML = "<div class='empty'>未配置 MCP 服务器</div>";
+    return;
+  }
+  box.innerHTML = "";
+  keys.forEach((server) => {
+    const st = status[server];
+    const tools = (data.tools[server] || []).map((t) => t.name);
+    const wrap = document.createElement("div");
+    wrap.className = "mcp-server";
+    const head = document.createElement("div");
+    head.className = "mcp-head";
+    const dot = document.createElement("span");
+    dot.className = "dot " + st;
+    const label = document.createElement("span");
+    if (st === "ok") {
+      label.textContent = server + "  " + tools.length + " 个工具";
+    } else if (st === "loading") {
+      label.textContent = server + "  连接中...";
+    } else {
+      label.textContent = server + "  连接失败";
+    }
+    head.appendChild(dot);
+    head.appendChild(label);
+    wrap.appendChild(head);
+    if (st === "ok" && tools.length) {
+      const tl = document.createElement("div");
+      tl.className = "mcp-tools";
+      tools.forEach((t) => {
+        const span = document.createElement("span");
+        span.className = "t";
+        span.textContent = "▸ " + t;
+        tl.appendChild(span);
+      });
+      wrap.appendChild(tl);
+    }
+    box.appendChild(wrap);
+  });
+}
+async function pollMcp() {
+  await renderMcp();
+  setTimeout(pollMcp, 3000);
+}
+
+/* ---------- SSE 任务通道 ---------- */
+async function runTask(body, handlers) {
+  busy = true;
+  sendBtn.disabled = true;
+  try {
+    const resp = await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const ctype = resp.headers.get("content-type") || "";
+    if (!ctype.includes("text/event-stream")) {
+      const data = await resp.json();
+      if (handlers.error) handlers.error(data);
+      return;
+    }
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        const chunk = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        const evMatch = chunk.match(/^event: (.+)$/m);
+        const dtMatch = chunk.match(/^data: (.+)$/m);
+        if (evMatch && dtMatch && handlers[evMatch[1]]) {
+          handlers[evMatch[1]](JSON.parse(dtMatch[1]));
+        }
+      }
+    }
+  } catch (e) {
+    if (handlers.error) handlers.error({ text: "连接服务器失败：" + e.message });
+  } finally {
+    busy = false;
+    sendBtn.disabled = false;
+    inputEl.focus();
+  }
+}
+
+/* ---------- 发送消息 ---------- */
+function sendMessage() {
+  const text = inputEl.value.trim();
+  if (!text || busy) return;
+  inputEl.value = "";
+  autoGrow();
+  hideCmdPanel();
+  if (text.startsWith("/")) { runCommand(text); return; }
+  addMsg("user", text);
+  let aiBubble = null;
+  runTask({ type: "chat", text }, {
+    status: (d) => setStatus(d.text, d.loading),
+    thinking: () => setStatus("AI 思考中...", true),
+    tool: (d) => {
+      const args = Object.keys(d.args || {}).map((k) => k + "=" + d.args[k]).join("，");
+      addMsg("tool", "🔧 " + d.name + "  " + args);
+      addLog(d.name + "  " + (args || "无参数"));
+      markUsed(d.name);
+      setStatus("正在执行工具 " + d.name + "...", true);
+    },
+    stream: (d) => {
+      if (!aiBubble) {
+        aiBubble = addMsg("ai", "");
+      }
+      aiBubble.textContent += d.text;
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    },
+    final: (d) => {
+      if (!aiBubble) addMsg("ai", d.text);
+      else aiBubble.textContent = d.text;
+      setStatus("就绪，输入消息开始对话", false);
+    },
+    usage: (d) => updateCtx(d.used, d.window / 1024, d.window_defaulted,
+                            d.estimated, d.ratio),
+    context_warning: (d) => addMsg("err",
+      "上下文使用量已达窗口的 80%，已暂停接收新消息。请输入 /compact 压缩上下文后继续。"),
+    error: (d) => { addMsg("err", d.text); setStatus("就绪，输入消息开始对话", false); },
+  });
+}
+
+/* ---------- 命令 ---------- */
+async function runCommand(cmd) {
+  const name = cmd.split(/\s+/)[0].toLowerCase();
+  if (name === "/clear") {
+    messagesEl.innerHTML = "";
+    return;
+  }
+  if (name === "/quit") {
+    fetch("/api/exit", { method: "POST", headers: { "Content-Type": "application/json" },
+                         body: "{}" }).catch(() => {});
+    window.close();
+    return;
+  }
+  if (name === "/compact") {
+    addMsg("user", "/compact");
+    runTask({ type: "compact" }, {
+      status: (d) => setStatus(d.text, d.loading),
+      compacting: (d) => setStatus(
+        d.stage === "archive" ? "正在保存原始上下文归档 " + d.archive_id + "..." : "正在压缩上下文...", true),
+      compacted: (d) => {
+        addMsg("ai", "上下文压缩完成，归档编号 " + d.archive_id + "，对话历史已替换为压缩摘要。");
+        setStatus("就绪，输入消息开始对话", false);
+      },
+      compact_error: (d) => { addMsg("err", d.text); setStatus("就绪，输入消息开始对话", false); },
+      usage: (d) => updateCtx(d.used, d.window / 1024, d.window_defaulted,
+                              d.estimated, d.ratio),
+      error: (d) => { addMsg("err", d.text); setStatus("就绪，输入消息开始对话", false); },
+    });
+    return;
+  }
+  if (name === "/resume") {
+    openSessions();
+    return;
+  }
+  const res = await fetch("/api/command", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cmd }),
+  });
+  const data = await res.json();
+  if (name === "/new") {
+    messagesEl.innerHTML = "";
+  }
+  addMsg(data.ok ? "ai" : "err", data.text || "");
+  if (name === "/model") refreshCtx();
+}
+
+/* ---------- 会话列表 ---------- */
+async function openSessions() {
+  const list = await (await fetch("/api/sessions")).json();
+  const box = $("sessList");
+  box.innerHTML = "";
+  if (!list.length) {
+    box.innerHTML = "<div class='empty' style='padding:16px'>还没有保存过的历史会话</div>";
+  } else {
+    list.forEach((s) => {
+      const item = document.createElement("div");
+      item.className = "sess-item";
+      item.innerHTML = "<div class='s-id'>" + esc(s.id) + "</div>" +
+        "<div class='s-title'>" + esc(s.title) + "</div>" +
+        "<div class='s-count'>" + s.count + " 条消息</div>";
+      item.onclick = async () => {
+        $("sessModal").style.display = "none";
+        const res = await fetch("/api/resume", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: s.id }),
+        });
+        const data = await res.json();
+        messagesEl.innerHTML = "";
+        if (data.ok) {
+          const init2 = await (await fetch("/api/init")).json();
+          init2.messages.forEach((m) => addMsg(
+            m.role === "user" ? "user" : "ai", m.content));
+        }
+        addMsg(data.ok ? "ai" : "err", data.text || "");
+      };
+      box.appendChild(item);
+    });
+  }
+  $("sessModal").style.display = "flex";
+}
+$("sessCancel").onclick = () => { $("sessModal").style.display = "none"; };
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && $("sessModal").style.display === "flex") {
+    $("sessModal").style.display = "none";
+  }
+});
+
+/* ---------- 命令补全面板 ---------- */
+function refreshCmdPanel() {
+  const text = inputEl.value.trim();
+  if (!text.startsWith("/")) { hideCmdPanel(); return; }
+  const word = text.split(/\s+/)[0].toLowerCase();
+  let matched = agentInfo.commands.filter((c) => c[0].startsWith(word));
+  if (!matched.length) matched = agentInfo.commands;
+  cmdMatched = matched;
+  if (cmdIndex >= matched.length) cmdIndex = 0;
+  cmdPanel.innerHTML = "";
+  matched.forEach((c, i) => {
+    const item = document.createElement("div");
+    item.className = "cmd-item" + (i === cmdIndex ? " sel" : "");
+    item.innerHTML = "<span class='cmd-name'>" + esc(c[0]) + "</span>" + esc(c[1]);
+    item.onmousedown = (e) => { e.preventDefault(); inputEl.value = c[0]; runCommand(c[0]); };
+    cmdPanel.appendChild(item);
+  });
+  cmdPanel.style.display = "block";
+}
+function hideCmdPanel() { cmdPanel.style.display = "none"; cmdMatched = []; }
+function cycleCmd(down) {
+  if (!cmdMatched.length) return;
+  cmdIndex = (cmdIndex + (down ? 1 : -1) + cmdMatched.length) % cmdMatched.length;
+  refreshCmdPanel();
+}
+
+inputEl.addEventListener("input", () => { autoGrow(); refreshCmdPanel(); });
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    if (cmdPanel.style.display === "block" && cmdMatched.length) {
+      const c = cmdMatched[cmdIndex][0];
+      inputEl.value = c;
+      hideCmdPanel();
+      runCommand(c);
+    } else {
+      sendMessage();
+    }
+  } else if (e.key === "Tab") {
+    if (cmdPanel.style.display === "block") { e.preventDefault(); cycleCmd(true); }
+  } else if (e.key === "ArrowDown") {
+    if (cmdPanel.style.display === "block") { e.preventDefault(); cycleCmd(true); }
+  } else if (e.key === "ArrowUp") {
+    if (cmdPanel.style.display === "block") { e.preventDefault(); cycleCmd(false); }
+  } else if (e.key === "Escape") {
+    if (cmdPanel.style.display === "block") hideCmdPanel();
+  }
+});
+function autoGrow() {
+  inputEl.style.height = "auto";
+  inputEl.style.height = Math.min(140, inputEl.scrollHeight) + "px";
+}
+sendBtn.onclick = sendMessage;
+
+async function refreshCtx() {
+  const res = await fetch("/api/init");
+  const d = await res.json();
+  updateCtx(0, d.context_window / 1024, d.context_defaulted, false, 0);
+}
+
+init();
+</script>
+</body>
+</html>

@@ -15,7 +15,7 @@ from textual.widgets import (Button, Footer, Header, Label, ListItem,
 
 import core.context_manager as cm
 from core.agent import Agent
-from core.tools import TOOLS
+from core.tools import TOOLS, TOOL_CN, TOOL_GROUP
 from core.session_store import list_sessions
 
 EXIT_WORDS = ("exit", "quit")
@@ -37,52 +37,6 @@ BUBBLE_CSS = {
     "ai": ("#3fb950", "rgba(35,134,54,0.15)", "#238636"),
     "tool": ("#d29922", "rgba(158,106,3,0.15)", "#9e6a03"),
     "err": ("#f85149", "rgba(218,54,51,0.15)", "#da3633"),
-}
-
-# 工具中文说明，与 core/tools.py 的注册表对应
-TOOL_CN = {
-    "getCWD": "查看当前目录",
-    "listDirectory": "列出目录内容",
-    "getFileType": "查看文件类型",
-    "getFileContent": "读取文件内容",
-    "createFile": "新建文件",
-    "editFile": "编辑文件",
-    "createDirectory": "新建文件夹",
-    "deleteDirectory": "删除文件夹",
-    "deleteFile": "删除文件",
-    "renameFileOrDir": "重命名/移动",
-    "getDate": "获取当前日期",
-    "isLeapYear": "判断闰年",
-    "searchWeb": "联网搜索",
-    "fetchWeb": "抓取网页正文",
-    "RunCli": "执行系统命令",
-    "loadSkill": "加载技能",
-    "createSkill": "创建技能",
-    "officeCli": "创建/修改Office文档",
-    "recallContext": "检索历史上下文",
-}
-
-# 本地功能的分组标题
-TOOL_GROUP = {
-    "getCWD": "文件与目录",
-    "listDirectory": "文件与目录",
-    "getFileType": "文件与目录",
-    "getFileContent": "文件与目录",
-    "createFile": "文件与目录",
-    "editFile": "文件与目录",
-    "createDirectory": "文件与目录",
-    "deleteDirectory": "文件与目录",
-    "deleteFile": "文件与目录",
-    "renameFileOrDir": "文件与目录",
-    "getDate": "日期与时间",
-    "isLeapYear": "日期与时间",
-    "searchWeb": "网络与搜索",
-    "fetchWeb": "网络与搜索",
-    "RunCli": "命令执行",
-    "loadSkill": "技能管理",
-    "createSkill": "技能管理",
-    "officeCli": "Office 文档",
-    "recallContext": "上下文管理",
 }
 
 
