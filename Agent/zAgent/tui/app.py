@@ -33,10 +33,10 @@ COMMANDS = [
 ]
 
 BUBBLE_CSS = {
-    "you": ("#1f6feb", "#e8f1ff", "#d5e6ff"),
-    "ai": ("#1a7f37", "#e9f6ec", "#d3f0da"),
-    "tool": ("#9a6700", "#fff8e5", "#f5e6b8"),
-    "err": ("#d1242f", "#fdebec", "#f6cdd0"),
+    "you": ("#58a6ff", "rgba(31,111,235,0.13)", "#1f6feb"),
+    "ai": ("#3fb950", "rgba(35,134,54,0.15)", "#238636"),
+    "tool": ("#d29922", "rgba(158,106,3,0.15)", "#9e6a03"),
+    "err": ("#f85149", "rgba(218,54,51,0.15)", "#da3633"),
 }
 
 # 工具中文说明，与 core/tools.py 的注册表对应
@@ -189,26 +189,27 @@ class ChatTUI(App):
 
     CSS = """
     Screen {
-        background: #f6f8fa;
+        background: #0d1117;
     }
     Header {
-        background: #ffffff;
-        color: #24292f;
-        border-bottom: solid #d0d7de;
+        background: #1f6feb;
+        color: #ffffff;
+        border-bottom: solid #1f6feb;
+        text-style: bold;
     }
     #chat_col {
         width: 3fr;
-        border-right: solid #d0d7de;
-        background: #f6f8fa;
+        border-right: solid #30363d;
+        background: #0d1117;
     }
     #tools_col {
         width: 2fr;
-        background: #ffffff;
+        background: #161b22;
     }
     #messages {
         height: 1fr;
         padding: 1 1;
-        background: #f6f8fa;
+        background: #0d1117;
     }
     Bubble {
         width: 100%;
@@ -216,75 +217,75 @@ class ChatTUI(App):
         margin-bottom: 1;
     }
     #tools_title {
-        background: #f6f8fa;
-        color: #57606a;
+        background: #161b22;
+        color: #58a6ff;
         padding: 0 1;
         text-style: bold;
-        border-bottom: solid #d0d7de;
+        border-bottom: solid #30363d;
     }
     #func_list {
         height: auto;
         max-height: 40%;
         padding: 0 1;
-        background: #ffffff;
-        border-bottom: solid #d0d7de;
+        background: #161b22;
+        border-bottom: solid #30363d;
     }
     .func_item {
         width: 100%;
         padding: 0 0;
-        color: #57606a;
+        color: #8b949e;
     }
     .func_group {
         width: 100%;
         padding: 1 0 0 0;
-        color: #24292f;
+        color: #e6edf3;
         text-style: bold;
-        border-bottom: solid #d0d7de;
+        border-bottom: solid #21262d;
         margin-bottom: 1;
     }
     .func_used {
-        color: #1a7f37;
+        color: #3fb950;
         text-style: bold;
     }
     #mcp_title {
-        background: #f6f8fa;
-        color: #57606a;
+        background: #161b22;
+        color: #58a6ff;
         padding: 0 1;
         text-style: bold;
-        border-bottom: solid #d0d7de;
+        border-bottom: solid #30363d;
     }
     #mcp_panel {
         height: auto;
         max-height: 30%;
         padding: 0 1;
-        background: #ffffff;
-        border-bottom: solid #d0d7de;
+        background: #161b22;
+        border-bottom: solid #30363d;
     }
     #log_title {
-        background: #f6f8fa;
-        color: #57606a;
+        background: #161b22;
+        color: #58a6ff;
         padding: 0 1;
         text-style: bold;
-        border-bottom: solid #d0d7de;
+        border-bottom: solid #30363d;
     }
     #tool_list {
         height: 1fr;
         padding: 0 1;
-        background: #ffffff;
+        background: #161b22;
     }
     #status {
         height: 3;
-        background: #ffffff;
-        border-top: solid #d0d7de;
+        background: #161b22;
+        border-top: solid #30363d;
         padding: 0 1;
-        color: #57606a;
+        color: #8b949e;
     }
     #status_text {
         width: 1fr;
     }
     #status_ctx {
         width: auto;
-        color: #57606a;
+        color: #8b949e;
     }
     #status_loading {
         width: auto;
@@ -292,8 +293,8 @@ class ChatTUI(App):
     #input_row {
         height: auto;
         padding: 0 1;
-        background: #ffffff;
-        border-top: solid #d0d7de;
+        background: #161b22;
+        border-top: solid #30363d;
     }
     #input_loading {
         width: auto;
@@ -302,39 +303,39 @@ class ChatTUI(App):
     }
     #input {
         height: 3;
-        border: solid #d0d7de;
-        background: #ffffff;
-        color: #24292f;
+        border: round #30363d;
+        background: #0d1117;
+        color: #e6edf3;
     }
     #input:focus {
-        border: solid #0969da;
+        border: round #58a6ff;
     }
     #ctx_bar {
         height: 1;
-        background: #ffffff;
-        border-top: solid #d0d7de;
+        background: #161b22;
+        border-top: solid #30363d;
         padding: 0 1;
-        color: #57606a;
+        color: #8b949e;
     }
     #cmd_panel {
         display: none;
         height: auto;
         max-height: 10;
-        background: #ffffff;
-        border: solid #d0d7de;
+        background: #21262d;
+        border: round #58a6ff;
         padding: 0 1;
-        color: #57606a;
+        color: #8b949e;
     }
     #session_dlg {
         width: 76;
         height: auto;
         max-height: 24;
-        border: solid #0969da;
-        background: #ffffff;
+        border: round #58a6ff;
+        background: #161b22;
         padding: 1 2;
     }
     #session_dlg_title {
-        color: #24292f;
+        color: #e6edf3;
         text-style: bold;
         padding-bottom: 1;
     }
@@ -342,22 +343,31 @@ class ChatTUI(App):
         height: auto;
         max-height: 18;
         border: none;
+        background: #161b22;
+    }
+    #session_list > ListItem.list-view--highlight {
+        background: #1f6feb;
+        color: #ffffff;
     }
     #cfg_dlg {
         width: 76;
         height: auto;
-        border: solid #d1242f;
-        background: #ffffff;
+        border: round #f85149;
+        background: #161b22;
         padding: 1 2;
     }
     #cfg_dlg_title {
-        color: #d1242f;
+        color: #f85149;
         text-style: bold;
         padding-bottom: 1;
     }
     #cfg_dlg_body {
-        color: #24292f;
+        color: #e6edf3;
         padding-bottom: 1;
+    }
+    Scrollbar {
+        scrollbar-background: #21262d;
+        scrollbar-color: #58a6ff;
     }
     """
 
@@ -507,30 +517,30 @@ class ChatTUI(App):
         status = getattr(agent, "mcp_server_status", {})
         if not status:
             w = Static("未配置 MCP 服务器", markup=False)
-            w.styles.color = "#57606a"
+            w.styles.color = "#8b949e"
             await panel.mount(w)
             return
         for server, st in status.items():
             names = []
             if st == "loading":
                 label = "%s  连接中..." % server
-                color = "#9a6700"
+                color = "#d29922"
             elif st == "ok":
                 names = [t["function"]["name"][len(server) + 2:]
                          for t in agent.mcp_tools
                          if t["function"]["name"].startswith(server + "__")]
                 label = "%s  %d 个工具" % (server, len(names))
-                color = "#1a7f37"
+                color = "#3fb950"
             else:
                 label = "%s  连接失败" % server
-                color = "#d1242f"
+                color = "#f85149"
             head = Static(label, markup=False)
             head.styles.color = color
             head.styles.text_style = "bold"
             await panel.mount(head)
             for name in names:
                 sub = Static("  " + name, markup=False)
-                sub.styles.color = "#57606a"
+                sub.styles.color = "#8b949e"
                 await panel.mount(sub)
 
     # ---------- 命令补全面板 ----------
@@ -573,7 +583,7 @@ class ChatTUI(App):
         lines = []
         for cmd, desc in matched:
             if cmd == self._cmd_selected:
-                lines.append("[bold #0969da]> %s  %s[/]" % (cmd, desc))
+                lines.append("[bold #58a6ff]> %s  %s[/]" % (cmd, desc))
             else:
                 lines.append("  %s  %s" % (cmd, desc))
         panel._render_markup = True
@@ -756,10 +766,10 @@ class ChatTUI(App):
             w._render_markup = False
             w.update(text)
             if info["ratio"] >= 0.8:
-                w.styles.color = "#d1242f"
+                w.styles.color = "#f85149"
                 w.styles.text_style = "bold"
             else:
-                w.styles.color = "#57606a"
+                w.styles.color = "#8b949e"
                 # Textual 的 text_style 不接受空字符串，清除样式必须用 None
                 w.styles.text_style = None
 
@@ -859,9 +869,9 @@ class ChatTUI(App):
 
     async def _add_tool_line(self, text):
         line = Static(text, markup=False)
-        line.styles.color = "#9a6700"
-        line.styles.background = "#fff8e5"
-        line.styles.border = ("solid", "#f5e6b8")
+        line.styles.color = "#d29922"
+        line.styles.background = "rgba(158,106,3,0.15)"
+        line.styles.border = ("solid", "#9e6a03")
         await self.query_one("#tool_list", VerticalScroll).mount(line)
         self.query_one("#tool_list", VerticalScroll).scroll_end(
             animate=True)
