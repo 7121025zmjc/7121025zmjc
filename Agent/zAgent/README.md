@@ -16,6 +16,9 @@ zAgent/
 │   └── agent.py         # Agent 类：LLM 客户端与 function call 循环
 ├── tui/             # TUI 前端，Textual 终端聊天界面
 │   └── app.py       # ChatTUI 应用，斜杠命令、补全面板、MCP 边栏
+├── web/             # Web 前端，浏览器图形界面
+│   ├── server.py    # Flask 后端，SSE 流式推送聊天事件
+│   └── index.html   # 单页前端，现代深色聊天界面
 ├── main.py          # 程序入口，选择使用哪个前端
 ├── config.ini       # 配置，已被 .gitignore 排除
 └── requirements.txt # 依赖：openai、textual
@@ -28,7 +31,8 @@ zAgent/
 ```bash
 python -m venv venv
 venv\Scripts\pip install -r requirements.txt
-venv\Scripts\python main.py
+venv\Scripts\python main.py          # TUI 终端界面
+venv\Scripts\python main.py --web    # Web 图形界面，自动打开浏览器
 ```
 
 首次启动若没有 `config.ini`，会自动创建一份完整模板并弹窗提示，填写真实配置后重新启动即可。
