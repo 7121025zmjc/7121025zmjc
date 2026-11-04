@@ -111,8 +111,12 @@ def load_session(session_id, session_dir=None):
 
 
 def read_agents_md(base_dir=None):
-    """读取项目根目录的 AGENTS.md，存在且有内容时返回正文，否则返回 None。"""
-    base_dir = base_dir or os.getcwd()
+    """读取项目根目录的 AGENTS.md，存在且有内容时返回正文，否则返回 None。
+
+    默认固定读取项目根目录，与启动时所在目录无关，
+    保证 AGENTS.md 在任何位置启动都能被注入。
+    """
+    base_dir = base_dir or BASE_DIR
     path = os.path.join(base_dir, AGENTS_MD_NAME)
     if not os.path.isfile(path):
         return None
