@@ -8,8 +8,17 @@
 """
 import asyncio
 import json
+import logging
 import os
 import sys
+
+# 静默 MCP SDK 的日志噪音：部分服务器会把启动横幅写到 stdout，
+# 触发 SDK 打印 "Failed to parse JSONRPC message from server" 的完整堆栈。
+# 该横幅不影响工具发现与调用，本模块已有独立的错误收集与提示。
+logging.getLogger("mcp").setLevel(logging.CRITICAL)
+
+# 丢弃 MCP 子进程的 stderr 输出，避免服务器自己的日志直接刷到终端窗口
+_DEVNULL = open(os.devnull, "w", encoding="utf-8")
 
 # ---- 配置查找 ----
 MCP_CONFIG_NAME = ".mcp.json"
@@ -117,7 +126,7 @@ async def _list_tools_stdio(params, server_name, prefix):
     from mcp.client.stdio import stdio_client
 
     tools = []
-    async with stdio_client(params) as (read, write):
+    async with stdio_client(params, errlog=_DEVNULL) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
             result = await session.list_tools()
@@ -213,7 +222,7 @@ async def _call_tool_stdio(params, tool_name, arguments):
     from mcp import ClientSession
     from mcp.client.stdio import stdio_client
 
-    async with stdio_client(params) as (read, write):
+    async with stdio_client(params, errlog=_DEVNULL) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
             result = await session.call_tool(tool_name, arguments or {})

@@ -45,10 +45,14 @@ def run_tui(agent, created):
 
 def run_web(agent, created):
     """Web 图形界面：本地起 Flask 服务并自动打开浏览器。"""
+    import logging
     import threading
     import webbrowser
 
     from web.server import build_app
+
+    # 静默 Flask 开发服务器的警告与请求日志，避免终端窗口出现黄色提示与刷屏
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
     app = build_app(agent)
     # MCP 在后台线程异步加载，页面加载后动态刷新
