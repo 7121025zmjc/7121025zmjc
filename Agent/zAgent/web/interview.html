@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>zAgent 面试模拟器</title>
+<style>
+  :root {
+    --bg: #f3f5f9;
+    --bg2: #ffffff;
+    --bg3: #eef1f6;
+    --border: #dde2ea;
+    --text: #1f2328;
+    --muted: #59636e;
+    --blue: #1f6feb;
+    --blue-deep: #1857b6;
+    --blue-soft: #eaf2fe;
+    --green: #1a7f37;
+    --green-soft: #e8f5ec;
+    --orange: #9a6700;
+    --orange-soft: #fdf3e0;
+    --red: #cf222e;
+    --red-soft: #fdecee;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    background: radial-gradient(1200px 600px at 15% -10%, #dbe7f8 0%, transparent 55%),
+                radial-gradient(1000px 500px at 110% 110%, #e3eef9 0%, transparent 50%),
+                var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    background: linear-gradient(90deg, #2f81f7, #1f6feb);
+    color: #fff;
+    box-shadow: 0 2px 12px rgba(31,111,235,.25);
+    flex-shrink: 0;
+  }
+  .logo {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, #58a6ff, #1a7f37);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 15px; color: #fff;
+  }
+  header h1 { font-size: 17px; font-weight: 700; letter-spacing: .5px; }
+  header .badge {
+    font-size: 11px; background: rgba(255,255,255,.18);
+    padding: 3px 10px; border-radius: 20px;
+  }
+  header .spacer { margin-left: auto; }
+  header .back {
+    color: #fff; text-decoration: none; font-size: 12px;
+    background: rgba(255,255,255,.18); padding: 6px 14px;
+    border-radius: 18px; transition: background .15s;
+  }
+  header .back:hover { background: rgba(255,255,255,.3); }
+
+  main { flex: 1; display: flex; gap: 16px; padding: 16px; min-height: 0; }
+
+  /* 左侧对话区 */
+  .chat {
+    flex: 1; display: flex; flex-direction: column;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden;
+    box-shadow: 0 4px 18px rgba(31,35,40,.06);
+    min-width: 0;
+  }
+  .chat-title {
+    padding: 12px 18px; font-size: 13px; font-weight: 600;
+    color: var(--muted); border-bottom: 1px solid var(--border);
+    background: var(--bg3); display: flex; align-items: center; gap: 8px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+  .messages { flex: 1; overflow-y: auto; padding: 18px; display: flex;
+              flex-direction: column; gap: 14px; }
+  .msg { max-width: 78%; line-height: 1.65; font-size: 14px;
+         padding: 12px 16px; border-radius: 12px; white-space: pre-wrap;
+         word-break: break-word; }
+  .msg.ai { align-self: flex-start; background: var(--blue-soft);
+            border: 1px solid #d3e2fb; border-bottom-left-radius: 4px; }
+  .msg.user { align-self: flex-end; background: var(--bg3);
+              border: 1px solid var(--border); border-bottom-right-radius: 4px; }
+  .msg.sys { align-self: center; background: var(--green-soft);
+             color: var(--green); font-size: 12px; padding: 8px 14px;
+             border-radius: 20px; border: 1px solid #c8e6d0; }
+  .msg .who { display: block; font-size: 11px; color: var(--muted);
+              margin-bottom: 4px; font-weight: 600; }
+  .typing { color: var(--muted); font-size: 13px; font-style: italic; }
+
+  .input-area {
+    padding: 12px 16px; border-top: 1px solid var(--border);
+    background: var(--bg2); display: flex; gap: 10px; align-items: flex-end;
+  }
+  textarea {
+    flex: 1; resize: none; height: 44px; max-height: 140px;
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px 13px; font-size: 14px; font-family: inherit;
+    background: var(--bg); color: var(--text); outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  textarea:focus { border-color: var(--blue);
+                   box-shadow: 0 0 0 3px rgba(31,111,235,.12); }
+  textarea:disabled { opacity: .55; }
+  .send-btn {
+    height: 44px; padding: 0 22px; border: none; border-radius: 10px;
+    background: linear-gradient(135deg, #2f81f7, #1f6feb);
+    color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: filter .15s, transform .1s;
+  }
+  .send-btn:hover:not(:disabled) { filter: brightness(1.08); }
+  .send-btn:active:not(:disabled) { transform: translateY(1px); }
+  .send-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* 右侧面板 */
+  .side {
+    width: 360px; flex-shrink: 0; display: flex;
+    flex-direction: column; gap: 14px; overflow-y: auto;
+  }
+  .panel {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px;
+    box-shadow: 0 4px 18px rgba(31,35,40,.06);
+  }
+  .panel h2 {
+    font-size: 14px; font-weight: 700; margin-bottom: 14px;
+    padding-bottom: 10px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel h2::before {
+    content: ""; width: 4px; height: 14px; border-radius: 2px;
+    background: linear-gradient(180deg, #58a6ff, #1f6feb);
+  }
+  label { display: block; font-size: 12px; color: var(--muted);
+          margin: 12px 0 6px; font-weight: 600; }
+  input[type="text"], textarea.jd, select {
+    width: 100%; border: 1px solid var(--border); border-radius: 9px;
+    padding: 9px 11px; font-size: 13px; font-family: inherit;
+    background: var(--bg); color: var(--text); outline: none;
+  }
+  input[type="text"]:focus, textarea.jd:focus, select:focus {
+    border-color: var(--blue); box-shadow: 0 0 0 3px rgba(31,111,235,.12);
+  }
+  textarea.jd { resize: vertical; min-height: 96px; line-height: 1.55; }
+  .row2 { display: flex; gap: 10px; }
+  .row2 > div { flex: 1; }
+  .start-btn {
+    width: 100%; margin-top: 16px; padding: 12px; border: none;
+    border-radius: 10px; background: linear-gradient(135deg, #2f81f7, #1f6feb);
+    color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: filter .15s, transform .1s;
+    box-shadow: 0 4px 14px rgba(31,111,235,.25);
+  }
+  .start-btn:hover:not(:disabled) { filter: brightness(1.08); }
+  .start-btn:active:not(:disabled) { transform: translateY(1px); }
+  .start-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  .progress-wrap { display: flex; flex-direction: column; gap: 8px; }
+  .progress-meta {
+    display: flex; justify-content: space-between; font-size: 12px;
+    color: var(--muted);
+  }
+  .progress-meta strong { color: var(--text); }
+  .progress-track {
+    height: 9px; border-radius: 5px; background: var(--bg3); overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; width: 0; border-radius: 5px;
+    background: linear-gradient(90deg, #58a6ff, #1f6feb);
+    transition: width .35s ease;
+  }
+  .stage-tag {
+    display: inline-block; margin-top: 10px; font-size: 11px;
+    background: var(--blue-soft); color: var(--blue-deep);
+    padding: 4px 12px; border-radius: 20px; border: 1px solid #d3e2fb;
+  }
+
+  .score-card { display: flex; flex-direction: column; gap: 10px; }
+  .score-head { display: flex; align-items: center; justify-content: space-between; }
+  .score-dim { font-size: 11px; color: var(--muted); }
+  .score-total { font-size: 22px; font-weight: 800; }
+  .score-total span { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .score-bars { display: flex; flex-direction: column; gap: 8px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .bar-row .name { width: 68px; color: var(--muted); flex-shrink: 0; }
+  .bar-track { flex: 1; height: 7px; border-radius: 4px;
+               background: var(--bg3); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px;
+              background: linear-gradient(90deg, #58a6ff, #1f6feb); }
+  .bar-val { width: 26px; text-align: right; color: var(--muted); }
+  .score-comment {
+    font-size: 12.5px; line-height: 1.65; color: var(--text);
+    background: var(--bg3); border-radius: 9px; padding: 10px 12px;
+  }
+  .score-better {
+    font-size: 12.5px; line-height: 1.65;
+    background: var(--green-soft); color: #14532d;
+    border-radius: 9px; padding: 10px 12px; border: 1px solid #c8e6d0;
+  }
+  .card-label { font-size: 11px; color: var(--muted); font-weight: 600;
+                margin-bottom: 4px; display: block; }
+
+  .report-body { font-size: 13px; line-height: 1.75; }
+  .report-body h3 { font-size: 13.5px; margin: 12px 0 6px; color: var(--blue-deep); }
+  .report-body li { margin-left: 18px; margin-bottom: 4px; }
+  .report-body p { margin-bottom: 8px; }
+
+  .empty { color: var(--muted); font-size: 12.5px; line-height: 1.7; }
+  .finish-btn {
+    width: 100%; margin-top: 12px; padding: 10px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg3);
+    color: var(--text); font-size: 13px; cursor: pointer;
+  }
+  .finish-btn:hover { background: var(--red-soft); color: var(--red);
+                      border-color: #f5c2c7; }
+
+  @media (max-width: 900px) {
+    main { flex-direction: column; }
+    .side { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">z</div>
+  <h1>面试模拟器</h1>
+  <span class="badge">面试模式</span>
+  <div class="spacer"></div>
+  <a class="back" href="/">返回通用对话</a>
+</header>
+
+<main>
+  <section class="chat">
+    <div class="chat-title"><span class="dot"></span>面试对话</div>
+    <div class="messages" id="messages">
+      <div class="msg sys">在右侧填写目标岗位，点击开始面试。AI 面试官会依次进行自我介绍、技术问答、行为问答。</div>
+    </div>
+    <div class="input-area">
+      <textarea id="input" placeholder="输入你的回答，Ctrl+Enter 提交" disabled></textarea>
+      <button class="send-btn" id="send" disabled>提交</button>
+    </div>
+  </section>
+
+  <aside class="side">
+    <!-- 岗位配置 -->
+    <div class="panel" id="setup">
+      <h2>岗位配置</h2>
+      <label>目标岗位</label>
+      <input type="text" id="jobTitle" placeholder="例如 大模型应用开发实习生">
+      <label>岗位描述 JD，可选</label>
+      <textarea class="jd" id="jd" placeholder="粘贴岗位职责和要求，AI 会据此提取考察维度"></textarea>
+      <div class="row2">
+        <div>
+          <label>难度</label>
+          <select id="difficulty">
+            <option>初级</option>
+            <option selected>中级</option>
+            <option>高级</option>
+          </select>
+        </div>
+        <div>
+          <label>面试官风格</label>
+          <select id="style">
+            <option>中性</option>
+            <option>温和</option>
+            <option>严厉</option>
+          </select>
+        </div>
+      </div>
+      <button class="start-btn" id="startBtn">开始面试</button>
+    </div>
+
+    <!-- 面试进行中 -->
+    <div class="panel" id="panel" style="display:none;">
+      <h2>面试进度</h2>
+      <div class="progress-wrap">
+        <div class="progress-meta">
+          <span>题目进度</span>
+          <span><strong id="doneCount">0</strong> / <span id="totalCount">5</span></span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <div><span class="stage-tag" id="stageTag">自我介绍</span></div>
+      </div>
+      <button class="finish-btn" id="finishBtn">提前结束并生成复盘</button>
+    </div>
+
+    <!-- 本题评分 -->
+    <div class="panel" id="scorePanel" style="display:none;">
+      <h2>本题评分</h2>
+      <div id="scoreBody" class="empty">回答后显示评分。</div>
+    </div>
+
+    <!-- 复盘报告 -->
+    <div class="panel" id="reportPanel" style="display:none;">
+      <h2>复盘报告</h2>
+      <div id="reportBody" class="report-body"></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+let busy = false;
+let finished = false;
+
+const msgBox = document.getElementById("messages");
+const input = document.getElementById("input");
+const sendBtn = document.getElementById("send");
+const startBtn = document.getElementById("startBtn");
+
+function addMsg(role, text, who) {
+  const div = document.createElement("div");
+  div.className = "msg " + role;
+  const body = document.createElement("span");
+  if (who) {
+    const w = document.createElement("span");
+    w.className = "who";
+    w.textContent = who;
+    body.appendChild(w);
+  }
+  body.appendChild(document.createTextNode(text));
+  div.appendChild(body);
+  msgBox.appendChild(div);
+  msgBox.scrollTop = msgBox.scrollHeight;
+  return div;
+}
+
+function addTyping(text) {
+  const div = document.createElement("div");
+  div.className = "msg ai typing";
+  div.textContent = text;
+  msgBox.appendChild(div);
+  msgBox.scrollTop = msgBox.scrollHeight;
+  return div;
+}
+
+function setInputEnabled(on) {
+  input.disabled = !on;
+  sendBtn.disabled = !on;
+  if (on) input.focus();
+}
+
+function updateProgress(progress) {
+  if (!progress) return;
+  document.getElementById("doneCount").textContent = progress.done;
+  document.getElementById("totalCount").textContent = progress.total;
+  const pct = progress.total ? (progress.done / progress.total * 100) : 0;
+  document.getElementById("progressFill").style.width = pct + "%";
+  document.getElementById("stageTag").textContent = progress.stage_cn || "";
+}
+
+function scoreColor(v) {
+  if (v >= 8) return "var(--green)";
+  if (v >= 6) return "var(--blue)";
+  if (v >= 4) return "var(--orange)";
+  return "var(--red)";
+}
+
+function renderScore(card) {
+  const panel = document.getElementById("scorePanel");
+  const body = document.getElementById("scoreBody");
+  panel.style.display = "block";
+  const s = card.scores || {};
+  const total = card.total != null ? card.total : 0;
+  const dimRows = [
+    ["内容准确", s.content || 0],
+    ["结构完整", s.structure || 0],
+    ["表达清晰", s.expression || 0],
+  ].map(function (r) {
+    return '<div class="bar-row"><span class="name">' + r[0] + '</span>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' +
+      (r[1] * 10) + '%;background:' + scoreColor(r[1]) + '"></div></div>' +
+      '<span class="bar-val">' + r[1] + '</span></div>';
+  }).join("");
+
+  let html = '<div class="score-card">' +
+    '<div class="score-head"><span class="score-dim">' +
+    (card.dimension || "") + '</span>' +
+    '<span class="score-total" style="color:' + scoreColor(total) + '">' +
+    total + '<span> / 10</span></span></div>' +
+    '<div class="score-bars">' + dimRows + '</div>';
+
+  if (card.comment) {
+    html += '<div><span class="card-label">点评</span><div class="score-comment">' +
+      card.comment + '</div></div>';
+  }
+  if (card.better_answer) {
+    html += '<div><span class="card-label">参考要点</span><div class="score-better">' +
+      card.better_answer + '</div></div>';
+  }
+  html += '</div>';
+  body.className = "";
+  body.innerHTML = html;
+}
+
+function escapeHtml(t) {
+  return (t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                  .replace(/>/g, "&gt;");
+}
+
+function renderReport(markdown) {
+  const panel = document.getElementById("reportPanel");
+  const body = document.getElementById("reportBody");
+  panel.style.display = "block";
+  let html = escapeHtml(markdown || "暂无报告");
+  // 表格分隔行直接去掉，表格数据行转成普通行，避免出现竖线堆叠
+  html = html.replace(/^\|[\s:\-|]+\|$/gm, "")
+             .replace(/^\|(.+)\|$/gm, function (line, inner) {
+               return "- " + inner.split("|").map(function (s) {
+                 return s.trim();
+               }).filter(Boolean).join("，");
+             });
+  // 极简 Markdown 渲染：标题、粗体、列表
+  html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>")
+             .replace(/^## (.+)$/gm, "<h3>$1</h3>")
+             .replace(/^# (.+)$/gm, "<h3>$1</h3>")
+             .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+             .replace(/^- (.+)$/gm, "<li>$1</li>")
+             .replace(/(<li>[\s\S]*?<\/li>)(?!\s*<li>)/g, "<ul>$1</ul>");
+  body.innerHTML = html;
+  panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+async function startInterview() {
+  const jobTitle = document.getElementById("jobTitle").value.trim();
+  if (!jobTitle) {
+    alert("请先填写目标岗位名称");
+    return;
+  }
+  startBtn.disabled = true;
+  startBtn.textContent = "正在解析岗位...";
+  try {
+    const resp = await fetch("/api/interview/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        job_title: jobTitle,
+        jd: document.getElementById("jd").value.trim(),
+        difficulty: document.getElementById("difficulty").value,
+        style: document.getElementById("style").value,
+      }),
+    });
+    const data = await resp.json();
+    if (!data.ok) {
+      alert(data.text || "面试初始化失败");
+      startBtn.disabled = false;
+      startBtn.textContent = "开始面试";
+      return;
+    }
+    document.getElementById("setup").style.display = "none";
+    document.getElementById("panel").style.display = "block";
+    document.getElementById("scorePanel").style.display = "block";
+    document.getElementById("messages").innerHTML = "";
+    addMsg("sys", "面试开始，岗位：" + data.job_title + "，难度：" + data.difficulty);
+    addMsg("ai", data.opening, "面试官");
+    addMsg("ai", data.question, "面试官");
+    updateProgress({ done: 0, total: 5, stage_cn: "自我介绍" });
+    document.getElementById("scoreBody").className = "empty";
+    document.getElementById("scoreBody").textContent = "回答后显示评分。";
+    setInputEnabled(true);
+  } catch (e) {
+    alert("请求失败：" + e);
+    startBtn.disabled = false;
+    startBtn.textContent = "开始面试";
+  }
+}
+
+async function sendAnswer() {
+  const text = input.value.trim();
+  if (!text || busy || finished) return;
+  busy = true;
+  setInputEnabled(false);
+  addMsg("user", text, "我");
+  input.value = "";
+  const typing = addTyping("面试官正在评分...");
+  try {
+    const resp = await fetch("/api/interview/answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text }),
+    });
+    const data = await resp.json();
+    typing.remove();
+    if (!data.ok) {
+      addMsg("sys", data.text || "评分失败");
+      setInputEnabled(true);
+      return;
+    }
+    if (data.score_card) renderScore(data.score_card);
+    if (data.is_followup) addMsg("ai", data.question, "面试官追问");
+    else if (data.question) addMsg("ai", data.question, "面试官");
+    if (data.progress) updateProgress(data.progress);
+    if (data.finished) {
+      finished = true;
+      addMsg("sys", "面试结束，复盘报告已生成。");
+      renderReport(data.report);
+      document.getElementById("finishBtn").style.display = "none";
+      input.placeholder = "本场面试已结束，可刷新页面开始新的一场";
+    } else {
+      setInputEnabled(true);
+    }
+  } catch (e) {
+    typing.remove();
+    addMsg("sys", "请求失败：" + e);
+    setInputEnabled(true);
+  } finally {
+    busy = false;
+  }
+}
+
+async function finishInterview() {
+  if (finished) return;
+  if (!confirm("确定提前结束面试并生成复盘报告吗？")) return;
+  document.getElementById("finishBtn").disabled = true;
+  try {
+    const resp = await fetch("/api/interview/finish", { method: "POST" });
+    const data = await resp.json();
+    if (!data.ok) {
+      alert(data.text || "生成报告失败");
+      document.getElementById("finishBtn").disabled = false;
+      return;
+    }
+    finished = true;
+    addMsg("sys", "面试已结束，复盘报告已生成，记录已存档。");
+    renderReport(data.report);
+    setInputEnabled(false);
+    input.placeholder = "本场面试已结束，可刷新页面开始新的一场";
+    document.getElementById("finishBtn").style.display = "none";
+  } catch (e) {
+    alert("请求失败：" + e);
+    document.getElementById("finishBtn").disabled = false;
+  }
+}
+
+startBtn.addEventListener("click", startInterview);
+sendBtn.addEventListener("click", sendAnswer);
+document.getElementById("finishBtn").addEventListener("click", finishInterview);
+input.addEventListener("keydown", function (e) {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendAnswer();
+});
+</script>
+</body>
+</html>

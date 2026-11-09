@@ -52,6 +52,13 @@
     font-size: 11px; background: rgba(255,255,255,.16);
     padding: 3px 10px; border-radius: 20px; white-space: nowrap;
   }
+  .mode-link {
+    font-size: 12px; color: #fff; text-decoration: none;
+    background: rgba(255,255,255,.18); padding: 4px 13px;
+    border-radius: 20px; white-space: nowrap;
+    transition: background .15s;
+  }
+  .mode-link:hover { background: rgba(255,255,255,.32); }
   .ctx-wrap { margin-left: auto; display: flex; align-items: center; gap: 8px; }
   .ctx-label { font-size: 11px; opacity: .85; white-space: nowrap; }
   .ctx-track {
@@ -216,6 +223,7 @@
   <div class="logo">z</div>
   <h1>zAgent</h1>
   <span class="model-badge" id="modelBadge">加载中...</span>
+  <a class="mode-link" href="/interview">面试模式</a>
   <div class="ctx-wrap">
     <span class="ctx-label">上下文</span>
     <div class="ctx-track"><div class="ctx-fill" id="ctxFill"></div></div>

@@ -11,6 +11,7 @@ import threading
 from flask import Flask, Response, jsonify, request, send_from_directory
 
 import core.context_manager as cm
+from core.interview import InterviewSession, list_interviews
 from core.tools import TOOLS, TOOL_CN, TOOL_GROUP
 
 WEB_DIR = __file__ and __import__("os").path.dirname(__file__)
@@ -31,10 +32,79 @@ def build_app(agent):
     """创建 Flask 应用，注入共享的 Agent 实例。"""
     app = Flask(__name__)
     app.agent = agent
+    app.interview = None      # 当前进行中的面试会话
 
     @app.get("/")
     def index():
         return send_from_directory(WEB_DIR, "index.html")
+
+    @app.get("/interview")
+    def interview_page():
+        """面试模式页面，与通用对话页面互相独立。"""
+        return send_from_directory(WEB_DIR, "interview.html")
+
+    @app.post("/api/interview/start")
+    def api_interview_start():
+        """创建一场新面试：解析岗位、生成开场与第一题。"""
+        body = request.json or {}
+        job_title = (body.get("job_title") or "").strip()
+        if not job_title:
+            return jsonify({"ok": False, "text": "请先填写目标岗位名称"})
+        session = InterviewSession(
+            agent.client, agent.model, job_title,
+            jd=body.get("jd", ""),
+            difficulty=body.get("difficulty", "中级"),
+            style=body.get("style", "中性"))
+        try:
+            result = session.prepare()
+        except Exception as e:
+            return jsonify({"ok": False, "text": "面试初始化失败：%s" % e})
+        app.interview = session
+        return jsonify(result)
+
+    @app.post("/api/interview/answer")
+    def api_interview_answer():
+        """提交一轮回答，返回评分卡与下一题。"""
+        if not app.interview:
+            return jsonify({"ok": False, "text": "请先开始一场面试"})
+        text = (request.json or {}).get("text", "")
+        try:
+            result = app.interview.answer(text)
+        except Exception as e:
+            return jsonify({"ok": False, "text": "评分失败：%s" % e})
+        if result.get("finished"):
+            try:
+                app.interview.save()
+            except Exception:
+                pass
+        return jsonify(result)
+
+    @app.post("/api/interview/finish")
+    def api_interview_finish():
+        """提前结束面试：生成并保存复盘报告。"""
+        if not app.interview:
+            return jsonify({"ok": False, "text": "当前没有进行中的面试"})
+        session = app.interview
+        try:
+            if not session.report:
+                session.report = session._build_report()
+            path = session.save()
+        except Exception as e:
+            return jsonify({"ok": False, "text": "生成复盘报告失败：%s" % e})
+        return jsonify({"ok": True, "report": session.report,
+                        "path": path, "state": session.snapshot()})
+
+    @app.get("/api/interview/state")
+    def api_interview_state():
+        """返回当前面试状态，页面刷新后可恢复。"""
+        if not app.interview:
+            return jsonify({"ok": False, "text": "当前没有进行中的面试"})
+        return jsonify(app.interview.snapshot())
+
+    @app.get("/api/interview/list")
+    def api_interview_list():
+        """历史面试记录列表。"""
+        return jsonify(list_interviews())
 
     @app.get("/api/init")
     def api_init():
