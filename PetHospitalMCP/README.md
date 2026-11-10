@@ -2,7 +2,7 @@
 
 这是一个独立的 Python MCP 服务，用于把现有 Go 宠物医院 REST API 暴露给 AI Agent / MCP Client。
 
-它不依赖 SDK 1.x 的 FastMCP，也不兼容旧版接口。实现基于官方的 Python SDK 2.x，并遵循 MCP 2026-07-28 规范。
+它基于官方 Python SDK 提供的 `FastMCP` 封装（`mcp.server.fastmcp`），协议版本由 SDK 决定，不自行实现 JSON-RPC 底层。
 
 ## 目标
 
@@ -29,7 +29,7 @@
 ### 1) 安装依赖
 
 ```bash
-cd pet-hospital-mcp
+cd PetHospitalMCP
 python -m venv .venv
 source .venv/bin/activate   # Linux/macOS
 # Windows PowerShell: .\.venv\Scripts\Activate.ps1
@@ -70,25 +70,14 @@ PET_HOSPITAL_API_BASE_URL=http://127.0.0.1:8080
 
 ## 主要工具
 
-服务提供这些 MCP 工具：
+服务共注册 **22 个 MCP 工具**，与 `src/pet_hospital_mcp/server.py` 一一对应：
 
-- `health_check`
-- `list_endpoints`
-- `get_meta`
-- `get_stats`
-- `list_pets`
-- `get_pet`
-- `create_pet`
-- `update_pet`
-- `patch_pet`
-- `delete_pet`
-- `search_pets`
-- `get_pet_records`
-- `add_pet_record`
-- `get_pet_charges`
-- `add_pet_charge`
-- `get_pet_summary`
-- `export_pets`
+| 分组 | 工具 |
+| --- | --- |
+| 服务自检 | `health_check`、`list_endpoints`、`get_meta`、`get_stats` |
+| 宠物档案 CRUD | `list_pets`、`get_pet`、`create_pet`、`update_pet`、`patch_pet`、`delete_pet`、`search_pets`、`export_pets` |
+| 条件查询 | `find_pets_by_owner`、`find_pets_by_doctor`、`find_pets_by_species`、`find_pets_by_disease`、`find_pets_by_status` |
+| 病历与消费 | `get_pet_records`、`add_pet_record`、`get_pet_charges`、`add_pet_charge`、`get_pet_summary` |
 
 ## 资源
 
@@ -113,6 +102,7 @@ PET_HOSPITAL_API_BASE_URL=http://127.0.0.1:8080
 
 ## 规范依据
 
-- 官方 Python SDK 2.x：`mcp`
-- MCP 2026-07-28：核心协议、工具与资源模型、JSON-RPC 2.0 交互
+- 官方 Python SDK：`mcp`（`>=1.2.0,<2`），工具与资源由 `mcp.server.fastmcp.FastMCP` 生成
+- 传输方式：stdio（默认）与 streamable-http，均由 SDK 提供，不在本仓库手写协议层
+- 参数校验与错误语义：`httpx` 调用上游，异常统一收敛为 `PetHospitalAPIError`（含 HTTP 状态码与可读原因）
 
