@@ -1,12 +1,23 @@
-# 密钥配置文件，包含 API key，必须排除
+# 密钥配置文件，包含 API key，必须排除（仓库只提交 *.example）
 config.ini
+
+# 本地 MCP 服务器清单，含本机绝对路径
+.mcp.json
 
 # Python 虚拟环境
 venv/
+.venv/
 
-# Python 缓存
+# Python 缓存与构建产物
 __pycache__/
 *.pyc
+*.egg-info/
+build/
+dist/
+
+# 运行期数据，不入库
+*.db
+*.sqlite3
 
 # 上下文压缩归档目录
 .agents/context/
