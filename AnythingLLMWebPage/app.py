@@ -96,22 +96,23 @@ def index():
 def upload():
     file = request.files.get("file")
     slug = (request.form.get("workspace") or "").strip()
+    # 先校验本地输入，再看上游状态：上游不可用时也能给出准确的格式提示
+    if file is None or not file.filename:
+        return render_template("index.html", workspaces=[], message=None,
+                               error="请先选择要上传的文件",
+                               base_url=BASE_URL), 400
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTS:
+        return render_template(
+            "index.html", workspaces=[], message=None,
+            error="暂不支持 %s 格式，可上传：%s"
+                  % (ext or "未知", "、".join(sorted(ALLOWED_EXTS))),
+            base_url=BASE_URL), 400
     try:
         workspaces = list_workspaces()
     except AnythingLLMError as e:
         return render_template("index.html", workspaces=[], message=None,
                                error=str(e), base_url=BASE_URL), 502
-    if file is None or not file.filename:
-        return render_template("index.html", workspaces=workspaces,
-                               message=None, error="请先选择要上传的文件",
-                               base_url=BASE_URL), 400
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in ALLOWED_EXTS:
-        return render_template(
-            "index.html", workspaces=workspaces, message=None,
-            error="暂不支持 %s 格式，可上传：%s"
-                  % (ext or "未知", "、".join(sorted(ALLOWED_EXTS))),
-            base_url=BASE_URL), 400
     slug = slug or first_slug(workspaces)
     if not slug:
         return render_template("index.html", workspaces=[], message=None,
