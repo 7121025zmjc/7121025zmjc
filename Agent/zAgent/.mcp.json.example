@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "PetHospital": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "-m",
+        "pet_hospital_mcp.server",
+        "--transport",
+        "stdio"
+      ],
+      "cwd": "../../PetHospitalMCP",
+      "env": {
+        "PET_HOSPITAL_API_BASE_URL": "http://127.0.0.1:8080"
+      }
+    },
+    "AnythingLLM": {
+      "type": "streamable_http",
+      "url": "http://127.0.0.1:8000/mcp"
+    }
+  }
+}

@@ -11,6 +11,21 @@ import re
 SKILLS_DIR = ".agents" + os.sep + "skills"
 EXTRA_SKILLS_DIRS = [r"D:\office\.agents\skills"]
 
+# 单个技能文件的读取上限，超过后截断，避免一次把超大文件塞进上下文
+MAX_SKILL_CHARS = 20000
+
+
+def _read_limited(path, limit=None):
+    """读取文本文件，超过上限时截断并附提示。"""
+    limit = limit or MAX_SKILL_CHARS
+    with open(path, "r", encoding="utf-8") as f:
+        text = f.read()
+    if len(text) > limit:
+        return (text[:limit]
+                + "\n...(内容过长已截断，原文共 %d 字符，"
+                  "需要完整内容请用 loadSkill 指定具体 filename)" % len(text))
+    return text
+
 
 def _parse_frontmatter(text):
     """解析 SKILL.md 开头的 YAML Frontmatter，返回 (meta, body)。"""
@@ -110,8 +125,7 @@ def load_skill_body(name, base_dir=None):
         skill_md = os.path.join(skill_dir, "skill.md")
     if not os.path.isfile(skill_md):
         return "未找到 SKILL.md: %s" % name
-    with open(skill_md, "r", encoding="utf-8") as f:
-        return f.read()
+    return _read_limited(skill_md)
 
 
 def load_skill_file(name, filename, base_dir=None):
@@ -119,22 +133,25 @@ def load_skill_file(name, filename, base_dir=None):
     skill_dir = _find_skill_dir(name, base_dir)
     if not skill_dir:
         return "未找到 Skill: %s" % name
-    # 防止路径逃逸
-    target = os.path.normpath(os.path.join(skill_dir, filename))
-    if not target.startswith(os.path.normpath(skill_dir)):
+    # 防止路径逃逸：用 commonpath 比较，避免同前缀目录绕过
+    skill_root = os.path.normpath(skill_dir)
+    target = os.path.normpath(os.path.join(skill_root, filename))
+    try:
+        inside = os.path.commonpath([skill_root, target]) == skill_root
+    except ValueError:
+        inside = False
+    if not inside:
         return "错误：不允许访问 Skill 目录之外的文件"
     if os.path.isfile(target):
-        with open(target, "r", encoding="utf-8") as f:
-            return f.read()
+        return _read_limited(target)
     # 递归搜索文件名
     candidates = []
-    for root, _, files in os.walk(skill_dir):
+    for root, _, files in os.walk(skill_root):
         for fn in files:
             if fn == os.path.basename(filename):
                 candidates.append(os.path.join(root, fn))
     if len(candidates) == 1:
-        with open(candidates[0], "r", encoding="utf-8") as f:
-            return f.read()
+        return _read_limited(candidates[0])
     if len(candidates) > 1:
         return "找到多个同名文件，请指定路径：\n" + "\n".join(candidates)
     return "未找到文件: %s" % filename

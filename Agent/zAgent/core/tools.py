@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """工具模块：本地文件操作、日期、闰年、网络搜索工具的注册表与实现，
 业务层不依赖 UI。"""
+import datetime
 import json
 import os
 import shutil
@@ -10,6 +11,47 @@ import urllib.error
 
 SEARCH_URL = "https://qianfan.baidubce.com/v2/ai_search"
 SEARCH_TIMEOUT = 30
+
+# 安全开关：由 core.agent 按 config.ini 的 [Safety] 段注入。
+# WORKSPACE_ROOT 为空表示不限制路径；配置后所有文件操作只能落在该目录内。
+# CONFIRM_DELETE 为真时，删除类工具必须显式传 confirm=true 才执行。
+WORKSPACE_ROOT = ""
+CONFIRM_DELETE = True
+
+
+def _normalize_path(path):
+    """把用户/模型给的路径规范成绝对路径。"""
+    raw = os.path.expanduser(str(path or ""))
+    return os.path.normpath(os.path.abspath(raw))
+
+
+def _guard_path(path):
+    """检查路径是否落在允许的工作根目录内。
+
+    返回 (True, 绝对路径) 或 (False, 错误说明)。
+    """
+    absolute = _normalize_path(path)
+    if not WORKSPACE_ROOT:
+        return True, absolute
+    root = _normalize_path(WORKSPACE_ROOT)
+    try:
+        inside = os.path.commonpath([root, absolute]) == root
+    except ValueError:
+        inside = False
+    if not inside:
+        return False, ("错误：路径 %s 超出允许的工作根目录 %s，"
+                       "如确需操作请修改 config.ini 的 [Safety] workspace_root"
+                       % (path, root))
+    return True, absolute
+
+
+def _need_confirm(path, confirm):
+    """危险操作确认：CONFIRM_DELETE 开启时必须显式确认。"""
+    if CONFIRM_DELETE and not confirm:
+        return ("错误：删除是不可恢复操作，未收到确认。"
+                "只有在用户明确要求删除 %s 时，才带 confirm=true 重新调用。"
+                % path)
+    return None
 
 FILE_TYPES = {
     ".txt": "纯文本文件", ".md": "Markdown 文本文件", ".py": "Python 源文件",
@@ -68,18 +110,16 @@ TOOL_GROUP = {
 }
 
 
+WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+
+
 def get_date():
-    """调用本地 date 命令获取当前日期和时间。"""
-    try:
-        date_str = subprocess.run(
-            ["cmd", "/c", "date", "/t"], capture_output=True, text=True,
-            timeout=10).stdout.strip()
-        time_str = subprocess.run(
-            ["cmd", "/c", "time", "/t"], capture_output=True, text=True,
-            timeout=10).stdout.strip()
-        return "当前日期：%s，当前时间：%s" % (date_str, time_str)
-    except Exception as e:
-        return "获取日期失败：%s" % e
+    """获取当前日期与时间，跨平台读取系统时钟。"""
+    now = datetime.datetime.now()
+    return "当前日期：%s，%s，当前时间：%s" % (
+        now.strftime("%Y-%m-%d"),
+        WEEKDAYS[now.weekday()],
+        now.strftime("%H:%M:%S"))
 
 
 def is_leap_year(year):
@@ -95,11 +135,14 @@ def get_cwd():
 
 def list_directory(path="."):
     """列出指定目录下所有文件和子目录。"""
-    if not os.path.isdir(path):
+    ok, resolved = _guard_path(path)
+    if not ok:
+        return resolved
+    if not os.path.isdir(resolved):
         return "错误：%s 不是有效目录" % path
     entries = []
-    for name in os.listdir(path):
-        full = os.path.join(path, name)
+    for name in os.listdir(resolved):
+        full = os.path.join(resolved, name)
         kind = "目录" if os.path.isdir(full) else "文件"
         entries.append("%s %s" % (kind, name))
     if not entries:
@@ -109,29 +152,40 @@ def list_directory(path="."):
 
 def get_file_type(path):
     """获取指定文件的文件类型。"""
-    if not os.path.exists(path):
+    ok, resolved = _guard_path(path)
+    if not ok:
+        return resolved
+    if not os.path.exists(resolved):
         return "错误：文件不存在 %s" % path
-    if os.path.isdir(path):
+    if os.path.isdir(resolved):
         return "%s 是目录" % path
-    ext = os.path.splitext(path)[1].lower()
+    ext = os.path.splitext(resolved)[1].lower()
     desc = FILE_TYPES.get(ext, "未知类型文件")
     return "%s 的文件类型：%s" % (path, desc)
 
 
 def get_file_content(path):
     """获取指定文件的内容，仅支持纯文本格式文件。"""
-    if not os.path.isfile(path):
+    ok, resolved = _guard_path(path)
+    if not ok:
+        return resolved
+    if not os.path.isfile(resolved):
         return "错误：%s 不是有效文件" % path
-    ext = os.path.splitext(path)[1].lower()
+    ext = os.path.splitext(resolved)[1].lower()
     if ext not in FILE_TYPES or ext in BINARY_EXTS:
         return "错误：%s 不是纯文本文件，无法读取内容" % path
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return "文件 %s 的内容：\n%s" % (path, f.read())
+        with open(resolved, "r", encoding="utf-8") as f:
+            text = f.read()
     except UnicodeDecodeError:
         return "错误：%s 不是 UTF-8 文本文件，无法读取" % path
     except Exception as e:
         return "读取失败：%s" % e
+    if len(text) > 4000:
+        total = len(text)
+        text = text[:4000] + ("\n...(内容过长已截断，共 %d 字符，"
+                              "需要后续内容请用 RunCli 或分块读取)" % total)
+    return "文件 %s 的内容：\n%s" % (path, text)
 
 
 OFFICE_EXTS = (".docx", ".xlsx", ".pptx", ".doc", ".xls", ".ppt")
@@ -213,6 +267,13 @@ def create_file(directory, filename, content=""):
         return ("错误：%s 是 Office 二进制格式文件，不能直接写入文本内容。"
                 "请改用 officeCli 工具，例如 officeCli "
                 "args=[\"create\", \"<完整路径>\"], 再通过 add/set 填入内容" % filename)
+    if not filename:
+        return "错误：文件名不能为空。"
+    if os.sep in filename or "/" in filename:
+        return "错误：filename 只能是文件名，不能带目录分隔符：%s" % filename
+    ok, directory = _guard_path(directory)
+    if not ok:
+        return directory
     if not os.path.isdir(directory):
         os.makedirs(directory, exist_ok=True)
     path = os.path.join(directory, filename)
@@ -228,13 +289,16 @@ def create_file(directory, filename, content=""):
 
 def edit_file(path, content):
     """编辑指定文件的内容，仅支持纯文本格式文件。"""
-    if not os.path.isfile(path):
+    ok, resolved = _guard_path(path)
+    if not ok:
+        return resolved
+    if not os.path.isfile(resolved):
         return "错误：%s 不是有效文件" % path
     if path.lower().endswith(OFFICE_EXTS):
         return ("错误：%s 是 Office 二进制格式文件，不能直接写入文本内容。"
                 "请改用 officeCli 工具，通过 set / add 命令修改内容" % path)
     try:
-        with open(path, "w", encoding="utf-8") as f:
+        with open(resolved, "w", encoding="utf-8") as f:
             f.write(content)
         return "已更新文件：%s" % path
     except Exception as e:
@@ -243,43 +307,66 @@ def edit_file(path, content):
 
 def create_directory(path):
     """创建新目录。"""
+    if not path:
+        return "错误：目录路径不能为空。"
+    ok, resolved = _guard_path(path)
+    if not ok:
+        return resolved
     try:
-        os.makedirs(path, exist_ok=True)
+        os.makedirs(resolved, exist_ok=True)
         return "已创建目录：%s" % path
     except Exception as e:
         return "创建失败：%s" % e
 
 
-def delete_directory(path):
-    """删除目录，支持非空目录。"""
-    if not os.path.isdir(path):
+def delete_directory(path, confirm=False):
+    """删除目录，支持非空目录。需要显式确认。"""
+    ok, resolved = _guard_path(path)
+    if not ok:
+        return resolved
+    if not os.path.isdir(resolved):
         return "错误：%s 不是有效目录" % path
+    refusal = _need_confirm(path, confirm)
+    if refusal:
+        return refusal
     try:
-        shutil.rmtree(path)
+        shutil.rmtree(resolved)
         return "已删除目录：%s" % path
     except Exception as e:
         return "删除失败：%s" % e
 
 
-def delete_file(path):
-    """删除文件。"""
-    if not os.path.isfile(path):
+def delete_file(path, confirm=False):
+    """删除文件。需要显式确认。"""
+    ok, resolved = _guard_path(path)
+    if not ok:
+        return resolved
+    if not os.path.isfile(resolved):
         return "错误：%s 不是有效文件" % path
+    refusal = _need_confirm(path, confirm)
+    if refusal:
+        return refusal
     try:
-        os.remove(path)
+        os.remove(resolved)
         return "已删除文件：%s" % path
     except Exception as e:
         return "删除失败：%s" % e
 
 
 def rename_file_or_dir(old_path, new_path):
-    """重命名文件或目录。"""
-    if not os.path.exists(old_path):
+    """重命名或移动文件/目录，源与目标都必须在允许目录内。"""
+    ok, old_resolved = _guard_path(old_path)
+    if not ok:
+        return old_resolved
+    ok, new_resolved = _guard_path(new_path)
+    if not ok:
+        return new_resolved
+    if not os.path.exists(old_resolved):
         return "错误：%s 不存在" % old_path
-    if os.path.exists(new_path):
+    if os.path.exists(new_resolved):
         return "错误：目标 %s 已存在" % new_path
     try:
-        os.rename(old_path, new_path)
+        os.rename(old_resolved, new_resolved)
         return "已将 %s 重命名为 %s" % (old_path, new_path)
     except Exception as e:
         return "重命名失败：%s" % e
@@ -441,13 +528,21 @@ TOOLS = [
         "parameters": _params({"path": {"type": "string",
             "description": "要创建的目录路径"}}, ["path"])}},
     {"type": "function", "function": {"name": "deleteDirectory",
-        "description": "删除目录，支持非空目录",
+        "description": "删除目录，支持非空目录。删除不可恢复，只有在用户明确要求"
+                       "删除该目录时才传 confirm=true",
         "parameters": _params({"path": {"type": "string",
-            "description": "要删除的目录路径"}}, ["path"])}},
+            "description": "要删除的目录路径"},
+            "confirm": {"type": "boolean",
+                        "description": "确认删除，仅在用户明确要求删除时传 true"}},
+            ["path"])}},
     {"type": "function", "function": {"name": "deleteFile",
-        "description": "删除文件",
+        "description": "删除文件。删除不可恢复，只有在用户明确要求删除该文件时"
+                       "才传 confirm=true",
         "parameters": _params({"path": {"type": "string",
-            "description": "要删除的文件路径"}}, ["path"])}},
+            "description": "要删除的文件路径"},
+            "confirm": {"type": "boolean",
+                        "description": "确认删除，仅在用户明确要求删除时传 true"}},
+            ["path"])}},
     {"type": "function", "function": {"name": "renameFileOrDir",
         "description": "重命名文件或目录",
         "parameters": _params({
@@ -545,6 +640,28 @@ from core.context_manager import recall_context
 import re as _re
 
 
+def _ensure_frontmatter(name, skill_context):
+    """保证写盘内容带 YAML frontmatter，且 name 与目录名一致。"""
+    text = (skill_context or "").strip()
+    if text.startswith("---"):
+        # 已有 frontmatter，若没声明 name 则补一行，避免发现阶段回退成目录名
+        head_end = text.find("\n---", 3)
+        head = text if head_end == -1 else text[:head_end]
+        if "name:" in head:
+            return text
+        return text.replace("---", "---\nname: %s" % name, 1)
+    desc = ""
+    for line in text.splitlines():
+        candidate = line.strip().lstrip("#").strip()
+        if candidate:
+            desc = candidate[:80]
+            break
+    if not desc:
+        desc = "%s 技能" % name
+    body = text if text else "# %s\n\n（由 createSkill 自动生成的技能，请补充说明）" % name
+    return "---\nname: %s\ndescription: %s\n---\n\n%s" % (name, desc, body)
+
+
 def create_skill(name, skill_context):
     """根据用户自然语言要求创建新的 Skill。
 
@@ -562,16 +679,26 @@ def create_skill(name, skill_context):
     skill_md = os.path.join(skill_dir, "SKILL.md")
     if os.path.exists(skill_md):
         return "提示：Skill %s 已存在，未覆盖原文件。路径：%s" % (name, skill_md)
+    content = _ensure_frontmatter(name, skill_context)
     try:
         os.makedirs(skill_dir, exist_ok=True)
         with open(skill_md, "w", encoding="utf-8") as f:
-            f.write(skill_context)
+            f.write(content)
     except Exception as e:
         return "错误：创建 Skill 失败：%s" % e
     return "已创建 Skill %s，路径：%s" % (name, skill_md)
 
 
 def call_tool(name, args, search_api_key=""):
+    """工具统一入口：任何实现层异常都转成错误文本回给模型，绝不打断对话。"""
+    try:
+        return _dispatch_tool(name, args or {}, search_api_key)
+    except Exception as e:
+        return "工具执行出错：%s: %s。请检查参数后重试，或改用其他工具。" % (
+            type(e).__name__, e)
+
+
+def _dispatch_tool(name, args, search_api_key=""):
     """根据工具名分发到对应实现函数。"""
     if name == "getCWD":
         return get_cwd()
@@ -589,9 +716,10 @@ def call_tool(name, args, search_api_key=""):
     if name == "createDirectory":
         return create_directory(args["path"])
     if name == "deleteDirectory":
-        return delete_directory(args["path"])
+        return delete_directory(args["path"],
+                                bool(args.get("confirm", False)))
     if name == "deleteFile":
-        return delete_file(args["path"])
+        return delete_file(args["path"], bool(args.get("confirm", False)))
     if name == "renameFileOrDir":
         return rename_file_or_dir(args["old_path"], args["new_path"])
     if name == "getDate":

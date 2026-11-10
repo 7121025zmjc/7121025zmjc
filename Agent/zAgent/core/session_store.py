@@ -110,22 +110,31 @@ def load_session(session_id, session_dir=None):
     return msgs or None
 
 
-def read_agents_md(base_dir=None):
+def read_agents_md(base_dir=None, name=None, max_chars=None):
     """读取项目根目录的 AGENTS.md，存在且有内容时返回正文，否则返回 None。
 
     默认固定读取项目根目录，与启动时所在目录无关，
     保证 AGENTS.md 在任何位置启动都能被注入。
+    name 可由 config.ini 的 [Session] agents_md 指定，默认兼容
+    AGENTS.md 与 AGENT.md 两种等价命名；max_chars 用于长度截断。
     """
     base_dir = base_dir or BASE_DIR
-    path = os.path.join(base_dir, AGENTS_MD_NAME)
-    if not os.path.isfile(path):
-        return None
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            text = f.read().strip()
-    except Exception:
-        return None
-    return text or None
+    candidates = [name] if name else ["AGENTS.md", "AGENT.md"]
+    for filename in candidates:
+        path = os.path.join(base_dir, filename)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                text = f.read().strip()
+        except Exception:
+            return None
+        if not text:
+            return None
+        if max_chars and len(text) > max_chars:
+            text = text[:max_chars] + "\n...(AGENTS.md 内容过长已截断)"
+        return text
+    return None
 
 
 def log_event(event, data=None, log_dir=None):

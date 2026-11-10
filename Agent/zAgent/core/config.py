@@ -20,6 +20,11 @@ DEFAULT_COMPRESS_TARGET_TOKENS = 5000
 DEFAULT_ARCHIVE_DIR = os.path.join(BASE_DIR, ".agents", "context")
 DEFAULT_SESSION_DIR = os.path.join(BASE_DIR, ".agents", "sessions")
 DEFAULT_SEARCH_TIMEOUT = 30
+DEFAULT_MAX_STEPS = 12
+DEFAULT_AGENTS_MD = "AGENTS.md"
+DEFAULT_AGENTS_MD_MAX_CHARS = 8000
+DEFAULT_WORKSPACE_ROOT = ""
+DEFAULT_CONFIRM_DELETE = True
 DEFAULT_OFFICE_CLI_EXE = r"D:\office\.agents\skills\office-cli\officecli-win-x64.exe"
 
 # config.ini 缺失时自动创建的完整模板，填入 mock 信息，
@@ -36,6 +41,8 @@ model = gpt-3.5-turbo
 timeout = 60
 # 消息历史保留的最大条数，超过后自动截断最早的对话（系统提示不受影响）
 max_messages = 30
+# 单轮对话内最多执行多少次工具调用，防止模型陷入无限循环
+max_steps = 12
 
 [Context]
 # 上下文使用量达到窗口的该比例时，警告并暂停接收新消息
@@ -48,12 +55,22 @@ archive_dir = .agents/context
 [Session]
 # 历史会话保存目录，/save 与 /new 自动保存
 session_dir = .agents/sessions
+# 长期规则文件名，默认兼容 AGENTS.md 与 AGENT.md
+agents_md = AGENTS.md
+# AGENTS.md 注入时的最大字符数，超出部分截断
+agents_md_max_chars = 8000
 
 [Tools]
 # 联网搜索超时（秒）
 search_timeout = 30
 # officecli 可执行文件路径
 office_cli_exe = D:\\office\\.agents\\skills\\office-cli\\officecli-win-x64.exe
+
+[Safety]
+# 允许文件操作的工作根目录；留空表示不限制，建议填项目目录或 D:\\LLM-Chat
+workspace_root =
+# 删除文件/目录是否要求模型显式传 confirm=true
+confirm_delete = true
 
 [search]
 # 百度千帆 API Key，用于 searchWeb 联网搜索
@@ -91,6 +108,18 @@ def _get_float(config, section, key, default):
         return float(raw)
     except ValueError:
         return default
+
+
+def _get_bool(config, section, key, default):
+    """读取布尔配置，缺失或非法时返回默认值。"""
+    raw = config.get(section, key, fallback="").strip().lower()
+    if not raw:
+        return default
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off"):
+        return False
+    return default
 
 
 def load_config(path=CONFIG_FILE):
@@ -151,6 +180,18 @@ def load_config(path=CONFIG_FILE):
                                    DEFAULT_SEARCH_TIMEOUT),
         "office_cli_exe": config.get("Tools", "office_cli_exe",
                                      fallback=DEFAULT_OFFICE_CLI_EXE).strip(),
+        "max_steps": _get_int(config, "Agent", "max_steps",
+                              DEFAULT_MAX_STEPS),
+        "agents_md_name": config.get("Session", "agents_md",
+                                     fallback=DEFAULT_AGENTS_MD).strip()
+        or DEFAULT_AGENTS_MD,
+        "agents_md_max_chars": _get_int(
+            config, "Session", "agents_md_max_chars",
+            DEFAULT_AGENTS_MD_MAX_CHARS),
+        "workspace_root": _resolve(BASE_DIR, config.get(
+            "Safety", "workspace_root", fallback=DEFAULT_WORKSPACE_ROOT)),
+        "confirm_delete": _get_bool(config, "Safety", "confirm_delete",
+                                    DEFAULT_CONFIRM_DELETE),
     }
 
 

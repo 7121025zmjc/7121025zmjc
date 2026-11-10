@@ -21,6 +21,7 @@ from core.session_store import (save_session, load_session,
 
 DEFAULT_TIMEOUT = 60
 MAX_MESSAGES = 30
+MAX_STEPS = 12
 SYSTEM_PROMPT = ("你是一个乐于助人的 AI 助手。涉及本地文件操作时，"
                  "必须调用对应的文件操作工具，不要编造结果。"
                  "涉及日期、年份、星期或时间时，必须先调用 getDate 工具"
@@ -97,6 +98,12 @@ class Agent:
         cm.CONTEXT_DIR = cfg.get("archive_dir", cm.CONTEXT_DIR)
         tools.SEARCH_TIMEOUT = cfg.get("search_timeout", tools.SEARCH_TIMEOUT)
         tools.OFFICE_CLI_EXE = cfg.get("office_cli_exe", tools.OFFICE_CLI_EXE)
+        # 安全开关：路径边界与删除确认，由 config.ini 的 [Safety] 段驱动
+        tools.WORKSPACE_ROOT = cfg.get("workspace_root", tools.WORKSPACE_ROOT)
+        tools.CONFIRM_DELETE = cfg.get("confirm_delete", tools.CONFIRM_DELETE)
+        self.max_steps = cfg.get("max_steps", MAX_STEPS)
+        self.agents_md_name = cfg.get("agents_md_name", "AGENTS.md")
+        self.agents_md_max_chars = cfg.get("agents_md_max_chars", 8000)
 
         # MCP 动态工具：先读取 .mcp.json 的服务器清单，
         # 实际连接放到后台线程异步完成，TUI 先进入界面再动态刷新，
@@ -130,7 +137,8 @@ class Agent:
         # AGENTS.md 一次注入：会话首次加载时把项目说明追加为一条
         # system 消息，后续每轮请求都会携带，实现全程复用；
         # 同时写入事件日志留痕
-        agents_md = read_agents_md()
+        agents_md = read_agents_md(name=self.agents_md_name,
+                                   max_chars=self.agents_md_max_chars)
         if agents_md:
             self.messages.append({"role": "system",
                                   "content": "[AGENTS.md 项目说明]\n"
@@ -299,7 +307,7 @@ class Agent:
             self.messages.append({"role": "user", "content": user_input})
             self.trim_messages()
             self._emit("thinking")
-            reply = self._chat_stream()
+            reply = self._chat_stream(1)
             self.messages.append({"role": "assistant", "content": reply})
             self.trim_messages()
             self._check_context()
@@ -308,8 +316,18 @@ class Agent:
         finally:
             self.busy = False
 
-    def _chat_stream(self):
-        """流式 function call 循环：增量输出内容，必要时执行工具并递归。"""
+    def _chat_stream(self, step=1):
+        """流式 function call 循环：增量输出内容，必要时执行工具并递归。
+
+        step 是本轮对话内的工具调用轮次，超过 max_steps 后停止继续调用，
+        防止模型陷入无限工具循环；工具执行异常已由 call_tool 兜成文本，
+        不会中断对话。
+        """
+        if step > self.max_steps:
+            notice = ("[已达到单轮工具调用上限 %d 步] 为安全起见停止继续调用工具。"
+                      "如需继续，请把任务拆成更小的步骤后重新提问。" % self.max_steps)
+            self._emit("step_limit", text=notice)
+            return notice
         kwargs = {"model": self.model, "messages": self.messages,
                   "tools": self.tools, "stream": True}
         try:
@@ -371,7 +389,7 @@ class Agent:
                                       "content": result})
                 self._emit("tool", name=name, args=args, result=result)
             self._emit("thinking")
-            return self._chat_stream()
+            return self._chat_stream(step + 1)
         return "".join(content)
 
     def compact(self):

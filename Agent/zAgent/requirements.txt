@@ -1,5 +1,5 @@
-openai
-textual
-trafilatura
-mcp
-flask
+openai>=3.0,<4
+textual>=0.60,<9
+trafilatura>=1.6,<3
+mcp>=1.9,<2
+flask>=3.0,<4
