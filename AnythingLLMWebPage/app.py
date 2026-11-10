@@ -1,67 +1,169 @@
 # -*- coding: utf-8 -*-
-"""
-AnythingLLM 文档上传网页
-把文件上传到第一个工作区并完成向量化嵌入。
-依赖：pip install flask requests
-启动：python app.py  然后浏览器打开 http://localhost:5000
+"""AnythingLLM 文档上传网页
+
+把本地文件上传到指定工作区并完成向量化嵌入，界面具备加载、成功、失败三态。
+配置优先级：环境变量 > config.ini。
+启动：python app.py，然后浏览器打开 http://127.0.0.1:5000
 """
 import configparser
 import os
 
 import requests
-from flask import Flask, request
+from flask import Flask, render_template, request
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PORT = 5000
+CONFIG_PATH = os.path.join(BASE_DIR, "config.ini")
+MAX_UPLOAD_BYTES = 30 * 1024 * 1024
+ALLOWED_EXTS = {".txt", ".md", ".pdf", ".doc", ".docx", ".csv", ".json",
+                ".html", ".pptx", ".xlsx"}
+TIMEOUT_LIST = 30
+TIMEOUT_UPLOAD = 180
 
-cfg = configparser.ConfigParser()
-cfg.read(os.path.join(BASE_DIR, "config.ini"), encoding="utf-8")
-API_KEY = cfg["ANYTHINGLLM"].get("api_key", "")
-BASE_URL = cfg["ANYTHINGLLM"].get("base_url", "http://localhost:3001").rstrip("/")
 
-app = Flask(__name__)
+def load_config():
+    """配置优先级：环境变量 > config.ini > 默认值。"""
+    api_key = os.getenv("ANYTHINGLLM_API_KEY", "")
+    base_url = os.getenv("ANYTHINGLLM_BASE_URL", "")
+    if not (api_key and base_url) and os.path.isfile(CONFIG_PATH):
+        cfg = configparser.ConfigParser()
+        cfg.read(CONFIG_PATH, encoding="utf-8")
+        section = cfg["ANYTHINGLLM"] if "ANYTHINGLLM" in cfg else {}
+        api_key = api_key or section.get("api_key", "")
+        base_url = base_url or section.get("base_url", "")
+    return api_key.strip(), (base_url or "http://localhost:3001").rstrip("/")
+
+
+API_KEY, BASE_URL = load_config()
 HEADERS = {"Authorization": "Bearer " + API_KEY}
 
-PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>上传文档到 AnythingLLM</title></head>
-<body style="font-family:sans-serif;max-width:560px;margin:40px auto">
-<h2>上传文档到第一个工作区</h2>
-<form method=post enctype=multipart/form-data action=/upload>
-<input type=file name=file required>
-<button type=submit>上传并嵌入</button>
-</form><p style=color:#888>$MSG</p></body></html>"""
+app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 
 
-def first_workspace_slug():
-    r = requests.get(BASE_URL + "/api/v1/workspaces", headers=HEADERS, timeout=30)
-    r.raise_for_status()
-    ws = r.json().get("workspaces", [])
-    if not ws:
-        raise RuntimeError("没有工作区，请先在 AnythingLLM 创建")
-    return ws[0]["slug"]
+class AnythingLLMError(RuntimeError):
+    """可读的页面级错误。"""
+
+
+def request_json(method, path, **kwargs):
+    """统一的 API 调用，失败抛出可读错误而不是透出堆栈。"""
+    kwargs.setdefault("timeout", TIMEOUT_LIST)
+    try:
+        resp = requests.request(method, BASE_URL + path, headers=HEADERS,
+                                **kwargs)
+    except requests.exceptions.Timeout:
+        raise AnythingLLMError("AnythingLLM 响应超时，请确认本地服务是否卡住")
+    except requests.exceptions.ConnectionError:
+        raise AnythingLLMError("无法连接 AnythingLLM，请确认它在 %s 正常运行"
+                               % BASE_URL)
+    except requests.exceptions.RequestException as e:
+        raise AnythingLLMError("请求 AnythingLLM 失败：%s" % e)
+    if resp.status_code >= 400:
+        detail = (resp.text or "").strip()[:200]
+        raise AnythingLLMError("AnythingLLM 返回 HTTP %d：%s"
+                               % (resp.status_code, detail))
+    try:
+        return resp.json()
+    except ValueError:
+        raise AnythingLLMError("AnythingLLM 返回的不是 JSON：%s"
+                               % (resp.text or "")[:200])
+
+
+def list_workspaces():
+    """工作区列表，失败时返回空列表并给出提示。"""
+    data = request_json("GET", "/api/v1/workspaces")
+    return data.get("workspaces", []) or []
+
+
+def first_slug(workspaces):
+    return workspaces[0]["slug"] if workspaces else ""
 
 
 @app.route("/")
 def index():
-    return PAGE.replace("$MSG", "")
+    message, error, workspaces = None, None, []
+    try:
+        workspaces = list_workspaces()
+        if not workspaces:
+            error = "AnythingLLM 中还没有工作区，请先创建一个工作区再上传。"
+    except AnythingLLMError as e:
+        error = str(e)
+    return render_template("index.html", workspaces=workspaces,
+                           message=message, error=error,
+                           base_url=BASE_URL)
 
 
 @app.route("/upload", methods=["POST"])
 def upload():
-    f = request.files["file"]
-    slug = first_workspace_slug()
-    r = requests.post(BASE_URL + "/api/v1/document/upload",
-                      headers=HEADERS,
-                      files={"file": (f.filename, f.stream.read())},
-                      timeout=120)
-    r.raise_for_status()
-    location = r.json()["documents"][0]["location"]
-    requests.post(BASE_URL + "/api/v1/workspace/%s/update-embeddings" % slug,
-                  headers={**HEADERS, "Content-Type": "application/json"},
-                  json={"adds": [location], "deletes": []}, timeout=120).raise_for_status()
-    return PAGE.replace("$MSG", "已上传并完成嵌入：%s" % f.filename)
+    file = request.files.get("file")
+    slug = (request.form.get("workspace") or "").strip()
+    try:
+        workspaces = list_workspaces()
+    except AnythingLLMError as e:
+        return render_template("index.html", workspaces=[], message=None,
+                               error=str(e), base_url=BASE_URL), 502
+    if file is None or not file.filename:
+        return render_template("index.html", workspaces=workspaces,
+                               message=None, error="请先选择要上传的文件",
+                               base_url=BASE_URL), 400
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTS:
+        return render_template(
+            "index.html", workspaces=workspaces, message=None,
+            error="暂不支持 %s 格式，可上传：%s"
+                  % (ext or "未知", "、".join(sorted(ALLOWED_EXTS))),
+            base_url=BASE_URL), 400
+    slug = slug or first_slug(workspaces)
+    if not slug:
+        return render_template("index.html", workspaces=[], message=None,
+                               error="没有可用工作区，请先在 AnythingLLM 创建",
+                               base_url=BASE_URL), 400
+
+    try:
+        payload = file.read()
+        if len(payload) > MAX_UPLOAD_BYTES:
+            raise AnythingLLMError("文件超过 30MB 上限，请压缩后再上传")
+        uploaded = request_json(
+            "POST", "/api/v1/document/upload",
+            files={"file": (file.filename, payload)}, timeout=TIMEOUT_UPLOAD)
+        documents = uploaded.get("documents") or []
+        if not documents:
+            raise AnythingLLMError("上传成功但未返回文档信息：%s"
+                                   % str(uploaded)[:200])
+        location = documents[0].get("location") or documents[0].get("docpath")
+        request_json("POST",
+                     "/api/v1/workspace/%s/update-embeddings" % slug,
+                     json={"adds": [location], "deletes": []},
+                     timeout=TIMEOUT_UPLOAD)
+    except AnythingLLMError as e:
+        return render_template("index.html", workspaces=workspaces,
+                               message=None, error=str(e),
+                               base_url=BASE_URL), 502
+
+    return render_template("index.html", workspaces=workspaces,
+                           message="已上传 %s 到工作区 %s 并完成向量化嵌入。"
+                                   % (file.filename, slug),
+                           error=None, base_url=BASE_URL)
+
+
+@app.errorhandler(413)
+def too_large(_):
+    return render_template("index.html", workspaces=[], message=None,
+                           error="文件超过 30MB 上限，请压缩后再上传",
+                           base_url=BASE_URL), 413
+
+
+def main():
+    if not API_KEY or API_KEY == "your_api_key_here":
+        raise SystemExit("请先在 config.ini 填入 AnythingLLM 的 api_key，"
+                         "或设置环境变量 ANYTHINGLLM_API_KEY")
+    # 启动前先探一次上游，配置错时直接给出清晰提示
+    try:
+        list_workspaces()
+    except AnythingLLMError as e:
+        print("[警告] 上游 AnythingLLM 暂不可用：%s" % e)
+    print("网页已启动：http://127.0.0.1:5000  上游：%s" % BASE_URL)
+    app.run(host="127.0.0.1", port=5000, debug=False)
 
 
 if __name__ == "__main__":
-    if API_KEY == "your_api_key_here" or not API_KEY:
-        raise SystemExit("请先在 config.ini 填入 AnythingLLM 的 api_key")
-    app.run(port=PORT, debug=False)
+    main()

@@ -1,0 +1,7 @@
+# AnythingLLM 连接配置模板
+# 用法：复制为 config.ini 并填入真实值（config.ini 已被 .gitignore 排除，不会入库）
+# 也可用环境变量覆盖：ANYTHINGLLM_API_KEY、ANYTHINGLLM_BASE_URL
+
+[ANYTHINGLLM]
+api_key = your_api_key_here
+base_url = http://localhost:3001
